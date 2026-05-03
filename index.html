@@ -6,7 +6,8 @@
 <title>LAVA RISE</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; touch-action:none; }
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+canvas { touch-action:none; }
 body {
   background:#111; overflow:hidden; display:flex; flex-direction:column;
   height:100dvh; font-family:system-ui,sans-serif; color:#fff;
@@ -183,11 +184,17 @@ function npConnect() {
 }
 
 // ── Lobby ──────────────────────────────────────────────────────────────────
-$('btn-host').addEventListener('click', startHost);
-$('btn-join').addEventListener('click', () => { npd=[]; npRefresh(); $('join-err').textContent=''; show('s-join'); });
-$('btn-local').addEventListener('click', startLocal);
-$('btn-host-back').addEventListener('click', () => { destroyPeer(); show('s-lobby'); });
-$('btn-join-back').addEventListener('click', () => { destroyPeer(); show('s-lobby'); });
+// tap() fires on touchstart (preventing delayed synthesized click) with click fallback for desktop
+function tap(id, fn) {
+  const el = $(id);
+  el.addEventListener('touchstart', e => { e.preventDefault(); fn(); }, { passive: false });
+  el.addEventListener('click', fn);
+}
+tap('btn-host',      startHost);
+tap('btn-join',      () => { npd=[]; npRefresh(); $('join-err').textContent=''; show('s-join'); });
+tap('btn-local',     startLocal);
+tap('btn-host-back', () => { destroyPeer(); show('s-lobby'); });
+tap('btn-join-back', () => { destroyPeer(); show('s-lobby'); });
 function destroyPeer() { if(peer){ peer.destroy(); peer=null; conn=null; } }
 
 // ── PeerJS — Host ──────────────────────────────────────────────────────────
