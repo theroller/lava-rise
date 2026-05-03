@@ -325,23 +325,20 @@ document.addEventListener('keyup', e => {
 
 // ── Input resolution ───────────────────────────────────────────────────────
 function applyInput() {
-  // Start from keyboard state so it's never clobbered
+  // Start from keyboard state so it's never clobbered by touch logic
   myInp.left=kbdInp.left; myInp.right=kbdInp.right; myInp.jump=kbdInp.jump;
   if (myRole==='local') return;
 
-  // OR-in touch / mouse
-  const p = players[myIdx];
-  if (!p || p.dead) return;
-  const rect = cv.getBoundingClientRect();
-  const pcx  = rect.left + (p.x + p.w/2) * (rect.width/cv.width);
+  // OR-in touch / mouse: left half of screen = left, right half = right
+  const mid = window.innerWidth / 2;
 
   for (const [,t] of activeTouches) {
     if (t.zone==='jump') myInp.jump=true;
-    else { if(t.clientX<pcx-12) myInp.left=true; if(t.clientX>pcx+12) myInp.right=true; }
+    else { if(t.clientX<mid) myInp.left=true; else myInp.right=true; }
   }
-  if (mouseDown&&mouseZone) {
+  if (mouseDown && mouseZone) {
     if (mouseZone==='jump') myInp.jump=true;
-    else { if(mouseX<pcx-12) myInp.left=true; if(mouseX>pcx+12) myInp.right=true; }
+    else { if(mouseX<mid) myInp.left=true; else myInp.right=true; }
   }
 }
 
