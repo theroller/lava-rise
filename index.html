@@ -409,16 +409,18 @@ function checkContact() {
 }
 
 // ── Camera ─────────────────────────────────────────────────────────────────
+// Each device computes its OWN camera based on its OWN player.
+// Ford's screen follows Ford; Finn's screen follows Finn.
 function updateCamera() {
-  const alive=players.filter(p=>!p.dead);
-  if (!alive.length) return;
-  // Track lowest alive player; keep them at 72% down screen
-  const lowestY=Math.max(...alive.map(p=>p.y+p.h));
-  const targetCamY=lowestY-cv.height*0.72;
-  // Ease toward target (camera can move in either direction for smoothness)
-  camVY+=(targetCamY-camY)*0.06;
-  camVY*=0.85; // dampen
-  camY+=camVY;
+  const me = players[myIdx];
+  if (!me) return;
+  const focusY = me.dead
+    ? Math.min(...players.filter(p=>!p.dead).map(p=>p.y+p.h), me.y+me.h)
+    : me.y + me.h;
+  const targetCamY = focusY - cv.height * 0.65;
+  camVY += (targetCamY - camY) * 0.08;
+  camVY *= 0.82;
+  camY  += camVY;
 }
 
 // ── Network ────────────────────────────────────────────────────────────────
@@ -428,9 +430,9 @@ function hostSend() {
   conn.send({
     type:'state',
     ps:players.map(p=>({x:p.x,y:p.y,vx:p.vx,vy:p.vy,hp:p.hp,hitFl:p.hitFl,atkCd:p.atkCd,facing:p.facing,dead:p.dead,jumpsLeft:p.jumpsLeft})),
-    // Send full platform data so guest renders identical layout
     plats:platforms.map(p=>({x:p.x,y:p.y,w:p.w,cracked:p.cracked,broken:p.broken,hp:p.hp})),
-    lavaWorldY, lavaSpeed, camY, gstate, winner,
+    // No camY — each device runs its own camera locally
+    lavaWorldY, lavaSpeed, gstate, winner,
   });
 }
 function guestSend() {
@@ -448,7 +450,6 @@ function applyState(d) {
   }
   if (typeof d.lavaWorldY === 'number') lavaWorldY = d.lavaWorldY;
   if (typeof d.lavaSpeed  === 'number') lavaSpeed  = d.lavaSpeed;
-  if (typeof d.camY       === 'number') camY       = d.camY;
   if (d.gstate) gstate = d.gstate;
   winner = d.winner ?? null;
 }
@@ -620,9 +621,9 @@ function loop() {
       if(syncTick%2===0) hostSend();
     } else {
       applyInput();
+      updateCamera();   // guest runs its own camera so it follows ITS player
       syncTick++;
       if(syncTick%2===0) guestSend();
-      // Guest still needs camera update (camY comes from host via applyState)
     }
   }
 
