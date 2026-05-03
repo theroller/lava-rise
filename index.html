@@ -180,12 +180,16 @@ function startHost() {
   $('room-code').textContent=code;
   $('host-status').textContent='Waiting for Finn…';
   show('s-host');
-  peer = new Peer(PEER_PFX+code);
+  peer = new Peer(PEER_PFX+code, { debug:1 });
   peer.on('error', e => { $('host-status').textContent='Error: '+e.type; });
   peer.on('connection', c => {
+    // Reject extra connections — we only support one guest
+    if (conn && conn.open) { c.close(); return; }
     conn=c;
     $('host-status').textContent='Finn joined! Starting…';
-    conn.on('open', () => launchGame());
+    const start = () => { launchGame(); hostSend(); };
+    if (conn.open) start();
+    else conn.on('open', start);
     conn.on('data', d => {
       if (d.type==='input')   Object.assign(remoteInp, d);
       if (d.type==='restart' && gstate==='gameover') resetGame();
@@ -199,9 +203,10 @@ function startGuest(code) {
   peer = new Peer();
   peer.on('error', e => { $('join-err').textContent='Error: '+e.type; });
   peer.on('open', () => {
-    conn = peer.connect(PEER_PFX+code);
-    conn.on('open',  () => { $('join-err').textContent='Connected!'; launchGame(); });
-    conn.on('data',  d  => { if(d.type==='state') applyState(d); });
+    conn = peer.connect(PEER_PFX+code, { reliable:true, serialization:'json' });
+    const start = () => { $('join-err').textContent='Connected!'; launchGame(); };
+    if (conn.open) start(); else conn.on('open', start);
+    conn.on('data',  d  => { if(d && d.type==='state') applyState(d); });
     conn.on('error', () => { $('join-err').textContent='Could not connect — check the code'; });
     conn.on('close', () => { if(gstate!=='lobby') returnToLobby(); });
   });
@@ -433,11 +438,19 @@ function guestSend() {
   conn.send({ type:'input', ...myInp });
 }
 function applyState(d) {
-  d.ps.forEach((s,i)=>{ if(players[i]) Object.assign(players[i],s); });
+  if (Array.isArray(d.ps)) d.ps.forEach((s,i)=>{ if(players[i]) Object.assign(players[i],s); });
   // Replace entire platform list with host's authoritative version
-  platforms = d.plats.map(p => ({ x:p.x, y:p.y, w:p.w, h:14, cracked:p.cracked, broken:p.broken, hp:p.hp }));
-  lavaWorldY=d.lavaWorldY; lavaSpeed=d.lavaSpeed;
-  camY=d.camY; gstate=d.gstate; winner=d.winner;
+  if (Array.isArray(d.plats)) {
+    platforms = d.plats.map(p => ({
+      x:+p.x, y:+p.y, w:+p.w, h:14,
+      cracked:!!p.cracked, broken:!!p.broken, hp:+p.hp
+    }));
+  }
+  if (typeof d.lavaWorldY === 'number') lavaWorldY = d.lavaWorldY;
+  if (typeof d.lavaSpeed  === 'number') lavaSpeed  = d.lavaSpeed;
+  if (typeof d.camY       === 'number') camY       = d.camY;
+  if (d.gstate) gstate = d.gstate;
+  winner = d.winner ?? null;
 }
 
 // ── Draw ───────────────────────────────────────────────────────────────────
@@ -550,7 +563,7 @@ function drawHUD() {
   if (myRole!=='local') {
     ctx.fillStyle=conn&&conn.open?'#00ff88':'#ff4444';
     ctx.font='12px system-ui'; ctx.textAlign='right';
-    ctx.fillText(conn&&conn.open?'● online':'● offline',cv.width-8,18);
+    ctx.fillText((conn&&conn.open?'● online':'● offline')+'  plats:'+platforms.length, cv.width-8, 18);
   }
 }
 
@@ -578,10 +591,11 @@ function loop() {
 
   if (gstate==='playing') {
     frame++;
-    lavaSpeed=LAVA_BASE+frame*LAVA_ACC;
-    lavaWorldY-=lavaSpeed; // lava rises in world space
-
     if (myRole==='host'||myRole==='local') {
+      // Only the authoritative side advances lava — guest receives via state
+      lavaSpeed = LAVA_BASE + frame * LAVA_ACC;
+      lavaWorldY -= lavaSpeed;
+
       applyInput();
       const p2inp=myRole==='local'?localP2:remoteInp;
       updatePlayer(players[0], myInp);
