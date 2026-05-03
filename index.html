@@ -518,7 +518,6 @@ function handleCvTap(e) {
 }
 
 // ── Main loop ──────────────────────────────────────────────────────────────
-let syncTick=0;
 function loop() {
   requestAnimationFrame(loop);
   if (gstate!=='playing'&&gstate!=='gameover') return;
