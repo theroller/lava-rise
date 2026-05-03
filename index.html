@@ -7,10 +7,17 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; touch-action:none; }
-body { background:#111; overflow:hidden; display:flex; flex-direction:column; height:100dvh; font-family:system-ui,sans-serif; color:#fff; }
+body {
+  background:#111; overflow:hidden; display:flex; flex-direction:column;
+  height:100dvh; font-family:system-ui,sans-serif; color:#fff;
+}
 
-/* ── Screens ── */
-.screen { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100dvh; gap:18px; padding:24px; text-align:center; }
+/* ── Lobby screens ── */
+.screen {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  flex:1; gap:18px; padding:24px; text-align:center;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
 .hidden { display:none !important; }
 
 .big-title { font-size:clamp(44px,11vw,88px); font-weight:900; color:#ff5500; text-shadow:0 0 24px #ff3300; }
@@ -37,13 +44,18 @@ body { background:#111; overflow:hidden; display:flex; flex-direction:column; he
 /* ── Game ── */
 canvas { display:block; flex:1; min-height:0; }
 #game-btns {
-  display:flex; justify-content:space-between; align-items:center;
-  padding:10px 24px; background:#090909; flex-shrink:0;
+  display:flex; justify-content:center; align-items:center;
+  padding:12px 24px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background:#090909; flex-shrink:0;
 }
-.gbtn { width:82px; height:82px; border-radius:50%; border:3px solid; font-size:32px; font-weight:bold; cursor:pointer; user-select:none; }
-.gbtn:active { opacity:.65; }
-.j-btn { background:#0d2260; color:#fff; border-color:#4499ff; }
-.a-btn { background:#664400; color:#fff; border-color:#ffaa00; }
+.j-btn {
+  width:110px; height:110px; border-radius:50%;
+  border:4px solid #4499ff; background:#0d2260;
+  color:#fff; font-size:42px; font-weight:bold;
+  cursor:pointer; user-select:none;
+}
+.j-btn:active { opacity:.6; transform:scale(.94); }
 </style>
 </head>
 <body>
@@ -61,7 +73,7 @@ canvas { display:block; flex:1; min-height:0; }
 <div id="s-host" class="screen hidden">
   <div class="sub">Ford's room code</div>
   <div class="room-code" id="room-code">----</div>
-  <div class="wait-msg" id="host-status">Waiting for Finn...</div>
+  <div class="wait-msg" id="host-status">Waiting for Finn…</div>
   <button class="back-btn" id="btn-host-back">← back</button>
 </div>
 
@@ -95,52 +107,56 @@ canvas { display:block; flex:1; min-height:0; }
 <!-- ── Game ── -->
 <canvas id="c" class="hidden"></canvas>
 <div id="game-btns" class="hidden">
-  <button class="gbtn j-btn" id="btn-jump">↑</button>
-  <button class="gbtn a-btn" id="btn-atk">⚔</button>
+  <button class="j-btn" id="btn-jump">↑</button>
 </div>
 
 <script>
 // ── Constants ──────────────────────────────────────────────────────────────
 const G         = 0.55;
-const J1        = -14;    // first jump
-const J2        = -11.5;  // second jump (weaker)
+const J1        = -14;      // first jump velocity
+const J2        = -11.5;    // second jump (weaker)
 const SPEED     = 4.5;
 const LAVA_BASE = 0.18;
 const LAVA_ACC  = 0.000055;
-const ATK_REACH = 58;
-const ATK_CD    = 28;
-const ATK_FR    = 10;
-const HIT_FL    = 12;
+const HIT_FL    = 14;
+const BUMP_CD   = 50;       // frames between auto-attack hits
 const PEER_PFX  = 'lava2026-';
 
 // ── Role / networking ──────────────────────────────────────────────────────
 let myRole = null;   // 'host' | 'guest' | 'local'
-let myIdx  = 0;      // which players[] index is "me"
+let myIdx  = 0;
 let peer   = null;
 let conn   = null;
 
 // ── Game state ─────────────────────────────────────────────────────────────
-let gstate  = 'lobby';  // lobby | playing | gameover
-let frame   = 0, lavaY = 0, lavaSpeed = 0, shake = 0, winner = null;
+let gstate = 'lobby';
+let frame = 0, lavaY = 0, lavaSpeed = 0, shake = 0, winner = null;
 let platforms = [], players = [];
 
 // ── Input ──────────────────────────────────────────────────────────────────
-const myInp    = { left:false, right:false, jump:false, atk:false };
-const remoteInp = { left:false, right:false, jump:false, atk:false }; // guest→host
-// Touch zone: tracks whether canvas is being touched and at which screen X
-let tzActive = false, tzX = 0;
+// myInp: my player's input this frame
+const myInp     = { left:false, right:false, jump:false };
+const remoteInp = { left:false, right:false, jump:false };
+const localP2   = { left:false, right:false, jump:false };
 
-// ── DOM helpers ────────────────────────────────────────────────────────────
+// Movement zone: canvas touch/mouse tracks pointer X relative to my character
+let ptrActive = false, ptrX = 0;
+
+// ── DOM ────────────────────────────────────────────────────────────────────
 const $  = id => document.getElementById(id);
-const cv = $('c'), cx = cv.getContext('2d');
+const cv = $('c'), cx2 = cv.getContext('2d');
 
 const SCREENS = ['s-lobby','s-host','s-join'];
 function show(id) {
   SCREENS.forEach(s => $(s).classList.add('hidden'));
   cv.classList.add('hidden');
   $('game-btns').classList.add('hidden');
-  if (id === 'game') { cv.classList.remove('hidden'); $('game-btns').classList.remove('hidden'); }
-  else $(id).classList.remove('hidden');
+  if (id === 'game') {
+    cv.classList.remove('hidden');
+    $('game-btns').classList.remove('hidden');
+  } else {
+    $(id).classList.remove('hidden');
+  }
 }
 
 function resize() {
@@ -151,118 +167,100 @@ window.addEventListener('resize', () => { resize(); if (gstate !== 'playing') se
 
 // ── Numpad ─────────────────────────────────────────────────────────────────
 let npd = [];
-function npRefresh() {
-  for (let i = 0; i < 4; i++) $(`nd${i}`).textContent = npd[i] ?? '_';
-}
+function npRefresh() { for (let i=0;i<4;i++) $(`nd${i}`).textContent = npd[i]??'_'; }
 document.querySelectorAll('.np-btn').forEach(b => {
   b.addEventListener('click', () => {
     const v = b.dataset.v;
-    if (v === '⌫') { npd.pop(); npRefresh(); $('join-err').textContent = ''; }
-    else if (v === 'go') { npConnect(); }
-    else if (npd.length < 4) { npd.push(v); npRefresh(); if (npd.length === 4) npConnect(); }
+    if (v==='⌫') { npd.pop(); npRefresh(); $('join-err').textContent=''; }
+    else if (v==='go') { npConnect(); }
+    else if (npd.length<4) { npd.push(v); npRefresh(); if (npd.length===4) npConnect(); }
   });
 });
-
 function npConnect() {
-  if (npd.length < 4) return;
-  $('join-err').textContent = 'Connecting…';
+  if (npd.length<4) return;
+  $('join-err').textContent='Connecting…';
   startGuest(npd.join(''));
 }
 
-// ── Lobby buttons ──────────────────────────────────────────────────────────
+// ── Lobby ──────────────────────────────────────────────────────────────────
 $('btn-host').addEventListener('click', startHost);
-$('btn-join').addEventListener('click', () => { npd = []; npRefresh(); $('join-err').textContent = ''; show('s-join'); });
+$('btn-join').addEventListener('click', () => { npd=[]; npRefresh(); $('join-err').textContent=''; show('s-join'); });
 $('btn-local').addEventListener('click', startLocal);
 $('btn-host-back').addEventListener('click', () => { destroyPeer(); show('s-lobby'); });
 $('btn-join-back').addEventListener('click', () => { destroyPeer(); show('s-lobby'); });
-
-function destroyPeer() { if (peer) { peer.destroy(); peer = null; conn = null; } }
+function destroyPeer() { if(peer){ peer.destroy(); peer=null; conn=null; } }
 
 // ── PeerJS — Host ──────────────────────────────────────────────────────────
 function startHost() {
-  myRole = 'host'; myIdx = 0;
-  const code = String(1000 + Math.floor(Math.random() * 9000));
+  myRole='host'; myIdx=0;
+  const code = String(1000 + Math.floor(Math.random()*9000));
   $('room-code').textContent = code;
   $('host-status').textContent = 'Waiting for Finn…';
   show('s-host');
-
   peer = new Peer(PEER_PFX + code);
-  peer.on('error', e => { $('host-status').textContent = 'Network error: ' + e.type; });
+  peer.on('error', e => { $('host-status').textContent='Network error: '+e.type; });
   peer.on('connection', c => {
     conn = c;
     $('host-status').textContent = 'Finn joined! Starting…';
     conn.on('open', () => launchGame());
     conn.on('data', d => {
-      if (d.type === 'input')   Object.assign(remoteInp, d);
-      if (d.type === 'restart' && gstate === 'gameover') resetGame();
+      if (d.type==='input')   Object.assign(remoteInp, d);
+      if (d.type==='restart' && gstate==='gameover') resetGame();
     });
-    conn.on('close', () => { if (gstate === 'playing' || gstate === 'gameover') returnToLobby(); });
+    conn.on('close', () => { if(gstate!=='lobby') returnToLobby(); });
   });
 }
 
 // ── PeerJS — Guest ─────────────────────────────────────────────────────────
 function startGuest(code) {
-  myRole = 'guest'; myIdx = 1;
+  myRole='guest'; myIdx=1;
   peer = new Peer();
-  peer.on('error', e => { $('join-err').textContent = 'Error: ' + e.type; });
+  peer.on('error', e => { $('join-err').textContent='Error: '+e.type; });
   peer.on('open', () => {
     conn = peer.connect(PEER_PFX + code);
-    conn.on('open', () => { $('join-err').textContent = 'Connected!'; launchGame(); });
-    conn.on('data', d => { if (d.type === 'state') applyState(d); });
-    conn.on('error', () => { $('join-err').textContent = 'Could not connect — check the code'; });
-    conn.on('close', () => { if (gstate === 'playing' || gstate === 'gameover') returnToLobby(); });
+    conn.on('open',  () => { $('join-err').textContent='Connected!'; launchGame(); });
+    conn.on('data',  d  => { if(d.type==='state') applyState(d); });
+    conn.on('error', () => { $('join-err').textContent='Could not connect — check the code'; });
+    conn.on('close', () => { if(gstate!=='lobby') returnToLobby(); });
   });
 }
 
-// ── Local mode ─────────────────────────────────────────────────────────────
-const localP2 = { left:false, right:false, jump:false, atk:false };
-const localKeyMap = {
-  'a':'p1-left','d':'p1-right','w':'p1-jump','f':'p1-atk',
-  'ArrowLeft':'p2-left','ArrowRight':'p2-right','ArrowUp':'p2-jump','Enter':'p2-atk',
-};
-document.addEventListener('keydown', e => {
-  if (e.key === 'ArrowUp') e.preventDefault();
-  const m = localKeyMap[e.key]; if (!m) return;
-  const [p,k] = m.split('-');
-  (p === 'p1' ? myInp : localP2)[k] = true;
-});
-document.addEventListener('keyup', e => {
-  const m = localKeyMap[e.key]; if (!m) return;
-  const [p,k] = m.split('-');
-  (p === 'p1' ? myInp : localP2)[k] = false;
-});
+// ── Local ──────────────────────────────────────────────────────────────────
+function startLocal() { myRole='local'; myIdx=0; launchGame(); }
 
-function startLocal() { myRole = 'local'; myIdx = 0; launchGame(); }
-
-// ── Game launch / reset ────────────────────────────────────────────────────
-function launchGame() { show('game'); resize(); setupLevel(); gstate = 'playing'; }
-function resetGame()  { setupLevel(); gstate = 'playing'; }
-function returnToLobby() { gstate = 'lobby'; destroyPeer(); show('s-lobby'); }
+// ── Game flow ──────────────────────────────────────────────────────────────
+function launchGame()    { show('game'); resize(); setupLevel(); gstate='playing'; }
+function resetGame()     { setupLevel(); gstate='playing'; }
+function returnToLobby() { gstate='lobby'; destroyPeer(); show('s-lobby'); }
 
 // ── Level setup ────────────────────────────────────────────────────────────
-function mkPlat(xp, yp, wp, cracked = false) {
-  const W = cv.width, H = cv.height;
+function mkPlat(xp, yp, wp, cracked=false) {
+  const W=cv.width, H=cv.height;
   return { x:W*xp, y:H*yp, w:W*wp, h:14, cracked, hp:2, broken:false };
 }
 function mkPlayer(xp, color, name) {
   return {
-    x:cv.width*xp, y:cv.height*0.7, w:20, h:50,
-    vx:0, vy:0, onGround:false, jumpsLeft:2,
+    x:cv.width*xp, y:cv.height*0.65,
+    w:20, h:50, vx:0, vy:0,
+    onGround:false, jumpsLeft:2,
     color, name,
-    hp:3, atkCd:0, atkFr:0, hitFl:0,
-    facing: name==='FORD' ? 1 : -1,
+    hp:3, hitFl:0, atkCd:0,
+    facing: name==='FORD'?1:-1,
     jLock:false, dead:false,
   };
 }
 function setupLevel() {
   frame=0; lavaY=cv.height+60; lavaSpeed=LAVA_BASE; shake=0; winner=null;
   platforms = [
-    mkPlat(0.08,0.86,0.84),
-    mkPlat(0.06,0.72,0.30,true),  mkPlat(0.58,0.70,0.34),
-    mkPlat(0.28,0.57,0.44,true),
-    mkPlat(0.05,0.44,0.28),       mkPlat(0.62,0.42,0.30,true),
-    mkPlat(0.22,0.30,0.25,true),  mkPlat(0.56,0.28,0.26),
-    mkPlat(0.30,0.14,0.40),
+    mkPlat(0.08, 0.80, 0.84),          // floor — moved up from 0.86
+    mkPlat(0.06, 0.67, 0.30, true),
+    mkPlat(0.58, 0.65, 0.34),
+    mkPlat(0.28, 0.52, 0.44, true),
+    mkPlat(0.05, 0.40, 0.28),
+    mkPlat(0.62, 0.38, 0.30, true),
+    mkPlat(0.22, 0.26, 0.25, true),
+    mkPlat(0.56, 0.24, 0.26),
+    mkPlat(0.30, 0.11, 0.40),
   ];
   players = [
     mkPlayer(0.22, '#4499ff', 'FORD'),
@@ -270,84 +268,81 @@ function setupLevel() {
   ];
 }
 
-// ── Touch zone (canvas = move left/right) ──────────────────────────────────
-cv.addEventListener('touchstart', e => {
-  e.preventDefault(); tzActive=true; tzX=e.touches[0].clientX;
-}, { passive:false });
-cv.addEventListener('touchmove', e => {
-  e.preventDefault(); tzX=e.touches[0].clientX;
-}, { passive:false });
-cv.addEventListener('touchend',   e => { e.preventDefault(); if(!e.touches.length) tzActive=false; }, { passive:false });
-cv.addEventListener('touchcancel',e => { tzActive=false; }, { passive:false });
+// ── Movement zone (canvas pointer) ────────────────────────────────────────
+// Touch
+cv.addEventListener('touchstart', e => { e.preventDefault(); ptrActive=true; ptrX=e.touches[0].clientX; }, {passive:false});
+cv.addEventListener('touchmove',  e => { e.preventDefault(); ptrX=e.touches[0].clientX; }, {passive:false});
+cv.addEventListener('touchend',   e => { e.preventDefault(); if(!e.touches.length) ptrActive=false; }, {passive:false});
+cv.addEventListener('touchcancel',() => { ptrActive=false; });
+// Mouse (desktop testing)
+cv.addEventListener('mousedown',  e => { ptrActive=true;  ptrX=e.clientX; });
+cv.addEventListener('mousemove',  e => { if(ptrActive) ptrX=e.clientX; });
+cv.addEventListener('mouseup',    () => { ptrActive=false; });
+cv.addEventListener('mouseleave', () => { ptrActive=false; });
 
-function applyTouchZone() {
-  if (myRole==='local' || !tzActive) return;
-  const p = players[myIdx]; if(!p) return;
+function applyPointerZone() {
+  if (myRole==='local' || !ptrActive) { myInp.left=false; myInp.right=false; return; }
+  const p = players[myIdx]; if (!p) return;
   const rect = cv.getBoundingClientRect();
-  const pcx = rect.left + (p.x + p.w/2) * (rect.width/cv.width);
-  myInp.left  = tzX < pcx;
-  myInp.right = tzX > pcx;
+  const pcx  = rect.left + (p.x + p.w/2) * (rect.width / cv.width);
+  myInp.left  = ptrX < pcx - 10;  // small deadzone at center
+  myInp.right = ptrX > pcx + 10;
 }
 
-// ── Action buttons ─────────────────────────────────────────────────────────
-function bindAction(id, key) {
-  const el=$(id);
-  const on  = e => { e.preventDefault(); myInp[key]=true; };
-  const off = e => { e.preventDefault(); myInp[key]=false; };
-  el.addEventListener('touchstart', on,  {passive:false});
-  el.addEventListener('touchend',   off, {passive:false});
-  el.addEventListener('touchcancel',off, {passive:false});
-  el.addEventListener('mousedown',  on);
-  el.addEventListener('mouseup',    off);
-  el.addEventListener('mouseleave', off);
-}
-bindAction('btn-jump','jump');
-bindAction('btn-atk', 'atk');
+// ── Jump button ────────────────────────────────────────────────────────────
+const btnJump = $('btn-jump');
+const pressJump  = e => { e.preventDefault(); myInp.jump=true; };
+const releaseJump= e => { e.preventDefault(); myInp.jump=false; };
+btnJump.addEventListener('touchstart', pressJump,   {passive:false});
+btnJump.addEventListener('touchend',   releaseJump, {passive:false});
+btnJump.addEventListener('touchcancel',releaseJump, {passive:false});
+btnJump.addEventListener('mousedown',  pressJump);
+btnJump.addEventListener('mouseup',    releaseJump);
+btnJump.addEventListener('mouseleave', releaseJump);
+
+// ── Keyboard (always active; drives myInp in net modes, both in local) ────
+document.addEventListener('keydown', e => {
+  if (e.key==='ArrowUp'||e.key===' ') e.preventDefault();
+  // My player (any mode)
+  if (e.key==='a'||e.key==='ArrowLeft')  myInp.left=true;
+  if (e.key==='d'||e.key==='ArrowRight') myInp.right=true;
+  if ((e.key==='w'||e.key==='ArrowUp'||e.key===' ')) myInp.jump=true;
+  // Local P2 (local mode only)
+  if (myRole==='local') {
+    if (e.key==='ArrowLeft')  { myInp.left=false;  localP2.left=true; }
+    if (e.key==='ArrowRight') { myInp.right=false; localP2.right=true; }
+    if (e.key==='ArrowUp')    { myInp.jump=false;  localP2.jump=true; }
+  }
+});
+document.addEventListener('keyup', e => {
+  if (e.key==='a'||e.key==='ArrowLeft')  { myInp.left=false;  localP2.left=false; }
+  if (e.key==='d'||e.key==='ArrowRight') { myInp.right=false; localP2.right=false; }
+  if (e.key==='w'||e.key==='ArrowUp'||e.key===' ') { myInp.jump=false; localP2.jump=false; }
+});
 
 // ── Physics ────────────────────────────────────────────────────────────────
-function updatePlayer(p, inp, others) {
+function updatePlayer(p, inp) {
   if (p.dead) return;
-  if (p.atkCd > 0) p.atkCd--;
-  if (p.atkFr > 0) p.atkFr--;
-  if (p.hitFl > 0) p.hitFl--;
+  if (p.hitFl>0) p.hitFl--;
+  if (p.atkCd>0) p.atkCd--;
 
   p.vx = 0;
   if (inp.left)  { p.vx=-SPEED; p.facing=-1; }
   if (inp.right) { p.vx= SPEED; p.facing= 1; }
 
-  // Double jump
-  if (inp.jump && !p.jLock && p.jumpsLeft > 0) {
+  if (inp.jump && !p.jLock && p.jumpsLeft>0) {
     p.vy = p.jumpsLeft===2 ? J1 : J2;
     p.jumpsLeft--;
-    p.jLock = true;
-    p.onGround = false;
+    p.jLock=true;
+    p.onGround=false;
   }
-  if (!inp.jump) p.jLock = false;
-
-  // Attack
-  if (inp.atk && p.atkCd===0) {
-    p.atkCd=ATK_CD; p.atkFr=ATK_FR;
-    others.forEach(o => {
-      if (o===p || o.dead) return;
-      const dx=(o.x+o.w/2)-(p.x+p.w/2);
-      const dy=Math.abs((o.y+o.h/2)-(p.y+p.h/2));
-      if (Math.abs(dx)<ATK_REACH && Math.sign(dx)===p.facing && dy<45) {
-        o.hp--; o.vx=p.facing*7; o.vy=-6; o.hitFl=HIT_FL; shake=8;
-      }
-    });
-    platforms.forEach(pl => {
-      if (!pl.cracked||pl.broken) return;
-      const pdx=(pl.x+pl.w/2)-(p.x+p.w/2);
-      const pdy=Math.abs(pl.y-(p.y+p.h));
-      if (Math.abs(pdx)<pl.w/2+35 && pdy<38) { pl.hp--; if(pl.hp<=0) pl.broken=true; }
-    });
-  }
+  if (!inp.jump) p.jLock=false;
 
   p.vy += G;
   p.x  += p.vx;
   p.y  += p.vy;
 
-  p.onGround = false;
+  p.onGround=false;
   platforms.forEach(pl => {
     if (pl.broken) return;
     if (p.x+p.w>pl.x && p.x<pl.x+pl.w) {
@@ -357,8 +352,34 @@ function updatePlayer(p, inp, others) {
       }
     }
   });
+
   p.x = Math.max(0, Math.min(cv.width-p.w, p.x));
   if (p.y+p.h >= lavaY) { p.dead=true; p.hp=0; }
+}
+
+// Auto-attack: contact damage. Higher player (lower y-center) deals damage.
+function checkContact(a, b) {
+  if (a.dead||b.dead) return;
+  if (a.atkCd>0||b.atkCd>0) return;
+  // AABB overlap
+  if (a.x+a.w<b.x||b.x+b.w<a.x||a.y+a.h<b.y||b.y+b.h<a.y) return;
+
+  const aCy = a.y + a.h/2;
+  const bCy = b.y + b.h/2;
+  const attacker = aCy < bCy ? a : b;   // higher up = attacker
+  const defender = aCy < bCy ? b : a;
+
+  defender.hp--;
+  defender.hitFl = HIT_FL;
+  // Bounce apart
+  const dir = attacker.x < defender.x ? 1 : -1;
+  attacker.vx = -dir * 5;
+  attacker.vy = -4;
+  defender.vx =  dir * 7;
+  defender.vy = -6;
+  a.atkCd = BUMP_CD;
+  b.atkCd = BUMP_CD;
+  shake = 10;
 }
 
 // ── Network sync ───────────────────────────────────────────────────────────
@@ -367,7 +388,7 @@ function hostSend() {
   if (!conn||!conn.open) return;
   conn.send({
     type:'state',
-    ps: players.map(p=>({x:p.x,y:p.y,vx:p.vx,vy:p.vy,hp:p.hp,atkFr:p.atkFr,hitFl:p.hitFl,facing:p.facing,dead:p.dead,jumpsLeft:p.jumpsLeft})),
+    ps: players.map(p=>({x:p.x,y:p.y,vx:p.vx,vy:p.vy,hp:p.hp,hitFl:p.hitFl,atkCd:p.atkCd,facing:p.facing,dead:p.dead,jumpsLeft:p.jumpsLeft})),
     plats: platforms.map(p=>({broken:p.broken,hp:p.hp})),
     lavaY, lavaSpeed, gstate, winner,
   });
@@ -384,113 +405,97 @@ function applyState(d) {
 
 // ── Draw ───────────────────────────────────────────────────────────────────
 function drawBg() {
-  const g=cx.createLinearGradient(0,0,0,cv.height);
+  const g=cx2.createLinearGradient(0,0,0,cv.height);
   g.addColorStop(0,'#0e0825'); g.addColorStop(1,'#260d00');
-  cx.fillStyle=g; cx.fillRect(0,0,cv.width,cv.height);
+  cx2.fillStyle=g; cx2.fillRect(0,0,cv.width,cv.height);
 }
 function drawPlat(pl) {
   if (pl.broken) return;
-  const dim = pl.cracked&&pl.hp===1;
-  cx.globalAlpha=dim?0.42:1;
-  cx.fillStyle=pl.cracked?'#7a4020':'#555a66';
-  cx.fillRect(pl.x,pl.y,pl.w,pl.h);
-  cx.fillStyle=pl.cracked?'#a05030':'#80858f';
-  cx.fillRect(pl.x,pl.y,pl.w,3);
+  const dim=pl.cracked&&pl.hp===1;
+  cx2.globalAlpha=dim?0.42:1;
+  cx2.fillStyle=pl.cracked?'#7a4020':'#555a66';
+  cx2.fillRect(pl.x,pl.y,pl.w,pl.h);
+  cx2.fillStyle=pl.cracked?'#a05030':'#80858f';
+  cx2.fillRect(pl.x,pl.y,pl.w,3);
   if (pl.cracked) {
-    cx.strokeStyle='#3a1a08'; cx.lineWidth=1.5;
-    cx.globalAlpha=dim?0.55:0.65;
+    cx2.strokeStyle='#3a1a08'; cx2.lineWidth=1.5; cx2.globalAlpha=dim?0.55:0.65;
     for(let i=0;i<3;i++){
       const px=pl.x+pl.w*(0.2+i*0.28);
-      cx.beginPath(); cx.moveTo(px,pl.y); cx.lineTo(px+4,pl.y+pl.h); cx.stroke();
+      cx2.beginPath(); cx2.moveTo(px,pl.y); cx2.lineTo(px+4,pl.y+pl.h); cx2.stroke();
     }
   }
-  cx.globalAlpha=1;
+  cx2.globalAlpha=1;
 }
 function drawLava() {
   const wo=frame*1.8;
-  cx.save();
-  cx.shadowColor='#ff5500'; cx.shadowBlur=24;
-  const g=cx.createLinearGradient(0,lavaY,0,cv.height);
+  cx2.save();
+  cx2.shadowColor='#ff5500'; cx2.shadowBlur=24;
+  const g=cx2.createLinearGradient(0,lavaY,0,cv.height);
   g.addColorStop(0,'#ff7700'); g.addColorStop(0.15,'#ff3300'); g.addColorStop(1,'#aa0000');
-  cx.fillStyle=g;
-  cx.beginPath(); cx.moveTo(0,lavaY);
-  for(let x=0;x<=cv.width;x+=20) cx.lineTo(x,lavaY+Math.sin((x+wo)*0.08)*6-3);
-  cx.lineTo(cv.width,cv.height); cx.lineTo(0,cv.height); cx.closePath(); cx.fill();
-  cx.restore();
+  cx2.fillStyle=g;
+  cx2.beginPath(); cx2.moveTo(0,lavaY);
+  for(let x=0;x<=cv.width;x+=20) cx2.lineTo(x,lavaY+Math.sin((x+wo)*0.08)*6-3);
+  cx2.lineTo(cv.width,cv.height); cx2.lineTo(0,cv.height); cx2.closePath(); cx2.fill();
+  cx2.restore();
 }
 function drawStick(p) {
   const pcx=p.x+p.w/2, pcy=p.y;
   const fl=p.hitFl>0&&(p.hitFl%3<2);
-  cx.save();
-  cx.strokeStyle=fl?'#fff':p.color; cx.lineWidth=3.5; cx.lineCap='round';
-  // head
-  cx.beginPath(); cx.arc(pcx,pcy+9,9,0,Math.PI*2); cx.stroke();
-  // body
-  cx.beginPath(); cx.moveTo(pcx,pcy+18); cx.lineTo(pcx,pcy+36); cx.stroke();
-  // legs
-  cx.beginPath();
-  cx.moveTo(pcx,pcy+36); cx.lineTo(pcx-9,pcy+50);
-  cx.moveTo(pcx,pcy+36); cx.lineTo(pcx+9,pcy+50);
-  cx.stroke();
-  // arms / sword
-  if (p.atkFr>0) {
-    cx.strokeStyle='#ffdd00'; cx.lineWidth=4;
-    cx.beginPath();
-    cx.moveTo(pcx,pcy+24); cx.lineTo(pcx+p.facing*30,pcy+19);
-    cx.moveTo(pcx,pcy+24); cx.lineTo(pcx-p.facing*10,pcy+32);
-    cx.stroke();
-    cx.strokeStyle='#eee'; cx.lineWidth=3;
-    cx.beginPath(); cx.moveTo(pcx+p.facing*30,pcy+19); cx.lineTo(pcx+p.facing*50,pcy+9); cx.stroke();
-    cx.beginPath(); cx.moveTo(pcx+p.facing*38,pcy+22); cx.lineTo(pcx+p.facing*38,pcy+10); cx.stroke();
-  } else {
-    cx.beginPath();
-    cx.moveTo(pcx,pcy+24); cx.lineTo(pcx-11,pcy+33);
-    cx.moveTo(pcx,pcy+24); cx.lineTo(pcx+11,pcy+33);
-    cx.stroke();
+  cx2.save();
+  cx2.strokeStyle=fl?'#fff':p.color; cx2.lineWidth=3.5; cx2.lineCap='round';
+  cx2.beginPath(); cx2.arc(pcx,pcy+9,9,0,Math.PI*2); cx2.stroke();
+  cx2.beginPath(); cx2.moveTo(pcx,pcy+18); cx2.lineTo(pcx,pcy+36); cx2.stroke();
+  cx2.beginPath();
+  cx2.moveTo(pcx,pcy+36); cx2.lineTo(pcx-9,pcy+50);
+  cx2.moveTo(pcx,pcy+36); cx2.lineTo(pcx+9,pcy+50);
+  cx2.stroke();
+  cx2.beginPath();
+  cx2.moveTo(pcx,pcy+24); cx2.lineTo(pcx-11,pcy+33);
+  cx2.moveTo(pcx,pcy+24); cx2.lineTo(pcx+11,pcy+33);
+  cx2.stroke();
+  cx2.restore();
+  // double-jump dots
+  for(let i=0;i<p.jumpsLeft;i++){
+    cx2.beginPath(); cx2.arc(pcx-5+i*10,pcy-5,3.5,0,Math.PI*2);
+    cx2.fillStyle=p.color; cx2.globalAlpha=0.65; cx2.fill(); cx2.globalAlpha=1;
   }
-  cx.restore();
-  // double-jump dots (above head)
-  for (let i=0;i<p.jumpsLeft;i++) {
-    cx.beginPath(); cx.arc(pcx-5+i*10,pcy-5,3.5,0,Math.PI*2);
-    cx.fillStyle=p.color; cx.globalAlpha=0.65; cx.fill(); cx.globalAlpha=1;
-  }
-  // name + HP
-  cx.fillStyle=p.color; cx.font='bold 13px system-ui'; cx.textAlign='center';
-  cx.fillText(p.name,pcx,pcy-11);
+  // name + HP pips
+  cx2.fillStyle=p.color; cx2.font='bold 13px system-ui'; cx2.textAlign='center';
+  cx2.fillText(p.name,pcx,pcy-11);
   for(let i=0;i<3;i++){
-    cx.beginPath(); cx.arc(pcx-14+i*14,pcy-23,5.5,0,Math.PI*2);
-    cx.fillStyle=i<p.hp?p.color:'#222'; cx.fill();
-    cx.strokeStyle='#555'; cx.lineWidth=1; cx.stroke();
+    cx2.beginPath(); cx2.arc(pcx-14+i*14,pcy-23,5.5,0,Math.PI*2);
+    cx2.fillStyle=i<p.hp?p.color:'#222'; cx2.fill();
+    cx2.strokeStyle='#555'; cx2.lineWidth=1; cx2.stroke();
   }
 }
 function drawHUD() {
   const danger=lavaSpeed>1.2?'🔥 DANGER 🔥':lavaSpeed>0.6?'▲ LAVA RISING ▲':'CLIMB!';
   const r=Math.min(255,Math.floor(lavaSpeed*80+160));
   const g=Math.max(0,Math.floor(120-lavaSpeed*80));
-  cx.fillStyle=`rgb(${r},${g},0)`; cx.font='bold 17px system-ui'; cx.textAlign='center';
-  cx.fillText(danger,cv.width/2,26);
+  cx2.fillStyle=`rgb(${r},${g},0)`; cx2.font='bold 17px system-ui'; cx2.textAlign='center';
+  cx2.fillText(danger,cv.width/2,26);
   if (myRole!=='local') {
-    cx.fillStyle=conn&&conn.open?'#00ff88':'#ff4444';
-    cx.font='12px system-ui'; cx.textAlign='right';
-    cx.fillText(conn&&conn.open?'● online':'● offline',cv.width-10,18);
+    cx2.fillStyle=conn&&conn.open?'#00ff88':'#ff4444';
+    cx2.font='12px system-ui'; cx2.textAlign='right';
+    cx2.fillText(conn&&conn.open?'● online':'● offline',cv.width-10,18);
   }
 }
 function drawGameOver() {
-  cx.fillStyle='rgba(0,0,0,0.58)'; cx.fillRect(0,0,cv.width,cv.height);
+  cx2.fillStyle='rgba(0,0,0,0.58)'; cx2.fillRect(0,0,cv.width,cv.height);
   const col=winner==='FORD'?'#4499ff':winner==='FINN'?'#ff4444':'#ffaa00';
-  cx.fillStyle=col; cx.font=`bold ${Math.floor(cv.width*0.09)}px system-ui`; cx.textAlign='center';
-  cx.fillText(winner==='NOBODY'?'DRAW!':winner+' WINS!',cv.width/2,cv.height*0.35);
-  cx.fillStyle='#ffaa00'; cx.font=`${Math.floor(cv.width*0.04)}px system-ui`;
-  cx.fillText(winner==='NOBODY'?'both fell in!':'survived the lava!',cv.width/2,cv.height*0.48);
+  cx2.fillStyle=col; cx2.font=`bold ${Math.floor(cv.width*0.09)}px system-ui`; cx2.textAlign='center';
+  cx2.fillText(winner==='NOBODY'?'DRAW!':winner+' WINS!',cv.width/2,cv.height*0.35);
+  cx2.fillStyle='#ffaa00'; cx2.font=`${Math.floor(cv.width*0.04)}px system-ui`;
+  cx2.fillText(winner==='NOBODY'?'both fell in!':'survived the lava!',cv.width/2,cv.height*0.48);
   const bw=220,bh=62,bx=cv.width/2-110,by=cv.height*0.60;
-  cx.fillStyle='#333'; cx.beginPath(); cx.roundRect(bx,by,bw,bh,12); cx.fill();
-  cx.fillStyle='#fff'; cx.font='bold 26px system-ui';
-  cx.fillText('PLAY AGAIN',cv.width/2,by+42);
+  cx2.fillStyle='#333'; cx2.beginPath(); cx2.roundRect(bx,by,bw,bh,12); cx2.fill();
+  cx2.fillStyle='#fff'; cx2.font='bold 26px system-ui';
+  cx2.fillText('PLAY AGAIN',cv.width/2,by+42);
 }
 
-// Canvas tap — only active in gameover for the replay button
-cv.addEventListener('click',       handleCvTap);
-cv.addEventListener('touchstart',  handleCvTap, {passive:false});
+// Canvas tap — game over replay button
+cv.addEventListener('click',      handleCvTap);
+cv.addEventListener('touchstart', handleCvTap, {passive:false});
 function handleCvTap(e) {
   if (gstate!=='gameover') return;
   e.preventDefault();
@@ -500,39 +505,43 @@ function handleCvTap(e) {
   const tx=(src.clientX-rect.left)*sx, ty=(src.clientY-rect.top)*sy;
   const bw=220,bh=62,bx=cv.width/2-110,by=cv.height*0.60;
   if (tx>=bx&&tx<=bx+bw&&ty>=by&&ty<=by+bh) {
-    if (myRole==='guest') {
-      // ask host to restart
-      if (conn&&conn.open) conn.send({type:'restart'});
-    } else {
-      resetGame();
-    }
+    if (myRole==='guest') { if(conn&&conn.open) conn.send({type:'restart'}); }
+    else resetGame();
   }
 }
 
 // ── Main loop ──────────────────────────────────────────────────────────────
+let syncTick=0;
 function loop() {
   requestAnimationFrame(loop);
   if (gstate!=='playing'&&gstate!=='gameover') return;
 
   let sx=0,sy=0;
   if (shake>0) { sx=(Math.random()-.5)*7; sy=(Math.random()-.5)*7; shake--; }
-  cx.save(); cx.translate(sx,sy);
+  cx2.save(); cx2.translate(sx,sy);
 
   if (gstate==='playing') {
     frame++;
-    lavaSpeed=LAVA_BASE+frame*LAVA_ACC;
-    lavaY-=lavaSpeed;
+    lavaSpeed = LAVA_BASE + frame*LAVA_ACC;
+    lavaY    -= lavaSpeed;
 
     if (myRole==='host'||myRole==='local') {
-      applyTouchZone();
-      updatePlayer(players[0], myRole==='local'?myInp:myInp, players);
-      updatePlayer(players[1], myRole==='local'?localP2:remoteInp, players);
+      applyPointerZone();
+      const p2inp = myRole==='local' ? localP2 : remoteInp;
+      updatePlayer(players[0], myInp);
+      updatePlayer(players[1], p2inp);
+      checkContact(players[0], players[1]);
+
       const alive=players.filter(p=>!p.dead);
-      if (alive.length<=1&&!winner) { winner=alive.length?alive[0].name:'NOBODY'; gstate='gameover'; }
+      if (alive.length<=1&&!winner) {
+        winner=alive.length?alive[0].name:'NOBODY';
+        gstate='gameover';
+      }
       syncTick++;
       if (syncTick%2===0) hostSend();
     } else {
-      applyTouchZone();
+      // Guest: apply pointer zone, send input, render host state
+      applyPointerZone();
       syncTick++;
       if (syncTick%2===0) guestSend();
     }
@@ -544,7 +553,7 @@ function loop() {
   players.forEach(drawStick);
   if (gstate==='playing')  drawHUD();
   if (gstate==='gameover') drawGameOver();
-  cx.restore();
+  cx2.restore();
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────
