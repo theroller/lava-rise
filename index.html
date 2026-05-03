@@ -7,33 +7,27 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-canvas { touch-action:none; }
 body {
   background:#111; overflow:hidden; display:flex; flex-direction:column;
   height:100dvh; font-family:system-ui,sans-serif; color:#fff;
 }
-
-/* ── Lobby screens ── */
 .screen {
   display:flex; flex-direction:column; align-items:center; justify-content:center;
-  flex:1; gap:18px; padding:24px; text-align:center;
-  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  flex:1; gap:18px; padding:24px;
+  padding-bottom:max(24px, env(safe-area-inset-bottom));
+  text-align:center;
 }
 .hidden { display:none !important; }
 
 .big-title { font-size:clamp(44px,11vw,88px); font-weight:900; color:#ff5500; text-shadow:0 0 24px #ff3300; }
 .sub       { font-size:clamp(18px,4vw,28px); color:#aaa; }
-
 .choice-btn { width:min(78vw,300px); height:86px; border:3px solid; border-radius:18px; font-size:clamp(24px,6vw,36px); font-weight:900; cursor:pointer; letter-spacing:2px; }
 .ford-btn   { background:#0d2260; color:#4499ff; border-color:#4499ff; }
 .finn-btn   { background:#601010; color:#ff4444; border-color:#ff4444; }
 .local-btn  { background:#222; color:#888; border-color:#444; font-size:clamp(16px,4vw,22px); height:60px; width:min(60vw,240px); margin-top:6px; }
 .back-btn   { background:#1a1a1a; color:#888; border:2px solid #333; border-radius:12px; padding:12px 28px; font-size:18px; cursor:pointer; margin-top:8px; }
-
-.room-code { font-size:clamp(64px,20vw,130px); font-weight:900; color:#ffaa00; letter-spacing:16px; }
-.wait-msg  { font-size:clamp(18px,4vw,26px); color:#aaa; }
-
-/* ── Numpad ── */
+.room-code  { font-size:clamp(64px,20vw,130px); font-weight:900; color:#ffaa00; letter-spacing:16px; }
+.wait-msg   { font-size:clamp(18px,4vw,26px); color:#aaa; }
 .np-display { display:flex; gap:14px; margin-bottom:4px; }
 .np-digit   { width:52px; height:64px; border-bottom:3px solid #666; display:flex; align-items:center; justify-content:center; font-size:40px; font-weight:900; color:#ffaa00; }
 .numpad     { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:min(88vw,340px); }
@@ -42,26 +36,12 @@ body {
 .np-connect { background:#0d2260 !important; border-color:#4499ff !important; }
 .np-error   { color:#ff4444; font-size:18px; min-height:24px; }
 
-/* ── Game ── */
-canvas { display:block; flex:1; min-height:0; }
-#game-btns {
-  display:flex; justify-content:center; align-items:center;
-  padding:12px 24px;
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
-  background:#090909; flex-shrink:0;
-}
-.j-btn {
-  width:110px; height:110px; border-radius:50%;
-  border:4px solid #4499ff; background:#0d2260;
-  color:#fff; font-size:42px; font-weight:bold;
-  cursor:pointer; user-select:none;
-}
-.j-btn:active { opacity:.6; transform:scale(.94); }
+/* Canvas fills everything — no button bar */
+canvas { display:block; flex:1; min-height:0; touch-action:none; }
 </style>
 </head>
 <body>
 
-<!-- ── Lobby ── -->
 <div id="s-lobby" class="screen">
   <div class="big-title">LAVA RISE</div>
   <div class="sub">Who are you?</div>
@@ -70,7 +50,6 @@ canvas { display:block; flex:1; min-height:0; }
   <button class="local-btn" id="btn-local">LOCAL TEST (keyboard)</button>
 </div>
 
-<!-- ── Host waiting ── -->
 <div id="s-host" class="screen hidden">
   <div class="sub">Ford's room code</div>
   <div class="room-code" id="room-code">----</div>
@@ -78,86 +57,69 @@ canvas { display:block; flex:1; min-height:0; }
   <button class="back-btn" id="btn-host-back">← back</button>
 </div>
 
-<!-- ── Join numpad ── -->
 <div id="s-join" class="screen hidden">
   <div class="sub">Enter Ford's code</div>
   <div class="np-display">
-    <div class="np-digit" id="nd0">_</div>
-    <div class="np-digit" id="nd1">_</div>
-    <div class="np-digit" id="nd2">_</div>
-    <div class="np-digit" id="nd3">_</div>
+    <div class="np-digit" id="nd0">_</div><div class="np-digit" id="nd1">_</div>
+    <div class="np-digit" id="nd2">_</div><div class="np-digit" id="nd3">_</div>
   </div>
   <div class="numpad">
-    <button class="np-btn" data-v="1">1</button>
-    <button class="np-btn" data-v="2">2</button>
-    <button class="np-btn" data-v="3">3</button>
-    <button class="np-btn" data-v="4">4</button>
-    <button class="np-btn" data-v="5">5</button>
-    <button class="np-btn" data-v="6">6</button>
-    <button class="np-btn" data-v="7">7</button>
-    <button class="np-btn" data-v="8">8</button>
-    <button class="np-btn" data-v="9">9</button>
-    <button class="np-btn" data-v="⌫">⌫</button>
-    <button class="np-btn" data-v="0">0</button>
+    <button class="np-btn" data-v="1">1</button><button class="np-btn" data-v="2">2</button><button class="np-btn" data-v="3">3</button>
+    <button class="np-btn" data-v="4">4</button><button class="np-btn" data-v="5">5</button><button class="np-btn" data-v="6">6</button>
+    <button class="np-btn" data-v="7">7</button><button class="np-btn" data-v="8">8</button><button class="np-btn" data-v="9">9</button>
+    <button class="np-btn" data-v="⌫">⌫</button><button class="np-btn" data-v="0">0</button>
     <button class="np-btn np-connect" data-v="go">▶</button>
   </div>
   <div class="np-error" id="join-err"></div>
   <button class="back-btn" id="btn-join-back">← back</button>
 </div>
 
-<!-- ── Game ── -->
+<!-- Canvas is the entire game screen — no button bar -->
 <canvas id="c" class="hidden"></canvas>
-<div id="game-btns" class="hidden">
-  <button class="j-btn" id="btn-jump">↑</button>
-</div>
 
 <script>
 // ── Constants ──────────────────────────────────────────────────────────────
-const G         = 0.55;
-const J1        = -14;      // first jump velocity
-const J2        = -11.5;    // second jump (weaker)
-const SPEED     = 4.5;
-const LAVA_BASE = 0.18;
-const LAVA_ACC  = 0.000055;
-const HIT_FL    = 14;
-const BUMP_CD   = 50;       // frames between auto-attack hits
-const PEER_PFX  = 'lava2026-';
+const G          = 0.55;
+const J1         = -14;
+const J2         = -11.5;
+const SPEED      = 4.5;
+const LAVA_BASE  = 0.25;
+const LAVA_ACC   = 0.00006;
+const BUMP_CD    = 50;
+const HIT_FL     = 14;
+const PEER_PFX   = 'lava2026-';
+const JUMP_ZONE  = 0.72;   // screen Y fraction — below this = jump zone
+const WORLD_BOTTOM = 2000; // initial floor world Y
+const GEN_AHEAD  = 900;    // px above camera top to pre-generate
 
-// ── Role / networking ──────────────────────────────────────────────────────
-let myRole = null;   // 'host' | 'guest' | 'local'
-let myIdx  = 0;
-let peer   = null;
-let conn   = null;
+// ── Role / net ─────────────────────────────────────────────────────────────
+let myRole = null, myIdx = 0, peer = null, conn = null;
 
 // ── Game state ─────────────────────────────────────────────────────────────
 let gstate = 'lobby';
-let frame = 0, lavaY = 0, lavaSpeed = 0, shake = 0, winner = null;
+let frame = 0, lavaWorldY = 0, lavaSpeed = 0, shake = 0, winner = null;
 let platforms = [], players = [];
+let camY = 0, camVY = 0;   // world Y of screen top; camera velocity
+let genTop = WORLD_BOTTOM; // highest world Y we've generated platforms at
 
 // ── Input ──────────────────────────────────────────────────────────────────
-// myInp: my player's input this frame
-const myInp     = { left:false, right:false, jump:false };
-const remoteInp = { left:false, right:false, jump:false };
-const localP2   = { left:false, right:false, jump:false };
+const myInp      = { left:false, right:false, jump:false };
+const remoteInp  = { left:false, right:false, jump:false };
+const localP2    = { left:false, right:false, jump:false };
 
-// Movement zone: canvas touch/mouse tracks pointer X relative to my character
-let ptrActive = false, ptrX = 0;
+// Multi-touch tracking
+const activeTouches = new Map(); // id → { zone:'move'|'jump', clientX }
+let mouseDown = false, mouseZone = null, mouseX = 0;
 
 // ── DOM ────────────────────────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
-const cv = $('c'), cx2 = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+const cv = $('c'), ctx = cv.getContext('2d');
 
-const SCREENS = ['s-lobby','s-host','s-join'];
 function show(id) {
-  SCREENS.forEach(s => $(s).classList.add('hidden'));
+  ['s-lobby','s-host','s-join'].forEach(s => $(s).classList.add('hidden'));
   cv.classList.add('hidden');
-  $('game-btns').classList.add('hidden');
-  if (id === 'game') {
-    cv.classList.remove('hidden');
-    $('game-btns').classList.remove('hidden');
-  } else {
-    $(id).classList.remove('hidden');
-  }
+  if (id === 'game') cv.classList.remove('hidden');
+  else $(id).classList.remove('hidden');
 }
 
 function resize() {
@@ -166,15 +128,27 @@ function resize() {
 }
 window.addEventListener('resize', () => { resize(); if (gstate !== 'playing') setupLevel(); });
 
+// ── Lobby buttons ──────────────────────────────────────────────────────────
+function tap(id, fn) {
+  const el = $(id);
+  el.addEventListener('touchstart', e => { e.preventDefault(); fn(); }, { passive:false });
+  el.addEventListener('click', fn);
+}
+tap('btn-host',      startHost);
+tap('btn-join',      () => { npd=[]; npRefresh(); $('join-err').textContent=''; show('s-join'); });
+tap('btn-local',     startLocal);
+tap('btn-host-back', () => { destroyPeer(); show('s-lobby'); });
+tap('btn-join-back', () => { destroyPeer(); show('s-lobby'); });
+
 // ── Numpad ─────────────────────────────────────────────────────────────────
 let npd = [];
-function npRefresh() { for (let i=0;i<4;i++) $(`nd${i}`).textContent = npd[i]??'_'; }
+function npRefresh() { for(let i=0;i<4;i++) $(`nd${i}`).textContent=npd[i]??'_'; }
 document.querySelectorAll('.np-btn').forEach(b => {
   b.addEventListener('click', () => {
     const v = b.dataset.v;
     if (v==='⌫') { npd.pop(); npRefresh(); $('join-err').textContent=''; }
     else if (v==='go') { npConnect(); }
-    else if (npd.length<4) { npd.push(v); npRefresh(); if (npd.length===4) npConnect(); }
+    else if (npd.length<4) { npd.push(v); npRefresh(); if(npd.length===4) npConnect(); }
   });
 });
 function npConnect() {
@@ -183,32 +157,20 @@ function npConnect() {
   startGuest(npd.join(''));
 }
 
-// ── Lobby ──────────────────────────────────────────────────────────────────
-// tap() fires on touchstart (preventing delayed synthesized click) with click fallback for desktop
-function tap(id, fn) {
-  const el = $(id);
-  el.addEventListener('touchstart', e => { e.preventDefault(); fn(); }, { passive: false });
-  el.addEventListener('click', fn);
-}
-tap('btn-host',      startHost);
-tap('btn-join',      () => { npd=[]; npRefresh(); $('join-err').textContent=''; show('s-join'); });
-tap('btn-local',     startLocal);
-tap('btn-host-back', () => { destroyPeer(); show('s-lobby'); });
-tap('btn-join-back', () => { destroyPeer(); show('s-lobby'); });
+// ── PeerJS ─────────────────────────────────────────────────────────────────
 function destroyPeer() { if(peer){ peer.destroy(); peer=null; conn=null; } }
 
-// ── PeerJS — Host ──────────────────────────────────────────────────────────
 function startHost() {
   myRole='host'; myIdx=0;
-  const code = String(1000 + Math.floor(Math.random()*9000));
-  $('room-code').textContent = code;
-  $('host-status').textContent = 'Waiting for Finn…';
+  const code = String(1000+Math.floor(Math.random()*9000));
+  $('room-code').textContent=code;
+  $('host-status').textContent='Waiting for Finn…';
   show('s-host');
-  peer = new Peer(PEER_PFX + code);
-  peer.on('error', e => { $('host-status').textContent='Network error: '+e.type; });
+  peer = new Peer(PEER_PFX+code);
+  peer.on('error', e => { $('host-status').textContent='Error: '+e.type; });
   peer.on('connection', c => {
-    conn = c;
-    $('host-status').textContent = 'Finn joined! Starting…';
+    conn=c;
+    $('host-status').textContent='Finn joined! Starting…';
     conn.on('open', () => launchGame());
     conn.on('data', d => {
       if (d.type==='input')   Object.assign(remoteInp, d);
@@ -218,13 +180,12 @@ function startHost() {
   });
 }
 
-// ── PeerJS — Guest ─────────────────────────────────────────────────────────
 function startGuest(code) {
   myRole='guest'; myIdx=1;
   peer = new Peer();
   peer.on('error', e => { $('join-err').textContent='Error: '+e.type; });
   peer.on('open', () => {
-    conn = peer.connect(PEER_PFX + code);
+    conn = peer.connect(PEER_PFX+code);
     conn.on('open',  () => { $('join-err').textContent='Connected!'; launchGame(); });
     conn.on('data',  d  => { if(d.type==='state') applyState(d); });
     conn.on('error', () => { $('join-err').textContent='Could not connect — check the code'; });
@@ -232,22 +193,29 @@ function startGuest(code) {
   });
 }
 
-// ── Local ──────────────────────────────────────────────────────────────────
-function startLocal() { myRole='local'; myIdx=0; launchGame(); }
-
-// ── Game flow ──────────────────────────────────────────────────────────────
+function startLocal()    { myRole='local'; myIdx=0; launchGame(); }
 function launchGame()    { show('game'); resize(); setupLevel(); gstate='playing'; }
 function resetGame()     { setupLevel(); gstate='playing'; }
 function returnToLobby() { gstate='lobby'; destroyPeer(); show('s-lobby'); }
 
-// ── Level setup ────────────────────────────────────────────────────────────
-function mkPlat(xp, yp, wp, cracked=false) {
-  const W=cv.width, H=cv.height;
-  return { x:W*xp, y:H*yp, w:W*wp, h:14, cracked, hp:2, broken:false };
+// ── Procedural platform generation ─────────────────────────────────────────
+function genPlatforms(upToY) {
+  // upToY is the smallest (highest) world Y to generate to
+  const W = cv.width;
+  while (genTop > upToY) {
+    genTop -= 95 + Math.random() * 60;
+    const w = W * (0.26 + Math.random() * 0.24);
+    // Ensure platform is reachable: x in [0, W-w] but biased to alternate sides
+    const x = Math.random() * (W * 0.7 - w) + Math.random() * W * 0.3;
+    const cracked = Math.random() < 0.38;
+    platforms.push({ x, y:genTop, w, h:14, cracked, hp:2, broken:false });
+  }
 }
-function mkPlayer(xp, color, name) {
+
+// ── Level setup ────────────────────────────────────────────────────────────
+function mkPlayer(xPct, startY, color, name) {
   return {
-    x:cv.width*xp, y:cv.height*0.65,
+    x: cv.width*xPct, y: startY,
     w:20, h:50, vx:0, vy:0,
     onGround:false, jumpsLeft:2,
     color, name,
@@ -256,75 +224,117 @@ function mkPlayer(xp, color, name) {
     jLock:false, dead:false,
   };
 }
+
 function setupLevel() {
-  frame=0; lavaY=cv.height+60; lavaSpeed=LAVA_BASE; shake=0; winner=null;
+  frame=0; shake=0; winner=null;
+  lavaSpeed = LAVA_BASE;
+
+  const playerStartY = WORLD_BOTTOM - 120;
+
+  // Floor platform + initial pre-generated platforms
   platforms = [
-    mkPlat(0.08, 0.80, 0.84),          // floor — moved up from 0.86
-    mkPlat(0.06, 0.67, 0.30, true),
-    mkPlat(0.58, 0.65, 0.34),
-    mkPlat(0.28, 0.52, 0.44, true),
-    mkPlat(0.05, 0.40, 0.28),
-    mkPlat(0.62, 0.38, 0.30, true),
-    mkPlat(0.22, 0.26, 0.25, true),
-    mkPlat(0.56, 0.24, 0.26),
-    mkPlat(0.30, 0.11, 0.40),
+    { x:cv.width*0.05, y:WORLD_BOTTOM, w:cv.width*0.9, h:14, cracked:false, hp:10, broken:false },
+    { x:cv.width*0.15, y:WORLD_BOTTOM-120, w:cv.width*0.32, h:14, cracked:false, hp:2, broken:false },
+    { x:cv.width*0.52, y:WORLD_BOTTOM-120, w:cv.width*0.32, h:14, cracked:false, hp:2, broken:false },
   ];
+  genTop = WORLD_BOTTOM - 120;
+  genPlatforms(WORLD_BOTTOM - cv.height * 4); // seed above view
+
+  lavaWorldY = WORLD_BOTTOM + cv.height * 0.8; // starts off screen below
+  camY = playerStartY - cv.height * 0.62;      // players appear ~62% down
+  camVY = 0;
+
   players = [
-    mkPlayer(0.22, '#4499ff', 'FORD'),
-    mkPlayer(0.68, '#ff4444', 'FINN'),
+    mkPlayer(0.22, playerStartY, '#4499ff', 'FORD'),
+    mkPlayer(0.68, playerStartY, '#ff4444', 'FINN'),
   ];
 }
 
-// ── Movement zone (canvas pointer) ────────────────────────────────────────
-// Touch
-cv.addEventListener('touchstart', e => { e.preventDefault(); ptrActive=true; ptrX=e.touches[0].clientX; }, {passive:false});
-cv.addEventListener('touchmove',  e => { e.preventDefault(); ptrX=e.touches[0].clientX; }, {passive:false});
-cv.addEventListener('touchend',   e => { e.preventDefault(); if(!e.touches.length) ptrActive=false; }, {passive:false});
-cv.addEventListener('touchcancel',() => { ptrActive=false; });
-// Mouse (desktop testing)
-cv.addEventListener('mousedown',  e => { ptrActive=true;  ptrX=e.clientX; });
-cv.addEventListener('mousemove',  e => { if(ptrActive) ptrX=e.clientX; });
-cv.addEventListener('mouseup',    () => { ptrActive=false; });
-cv.addEventListener('mouseleave', () => { ptrActive=false; });
+// ── Canvas touch & mouse ───────────────────────────────────────────────────
+cv.addEventListener('touchstart', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    const relY = t.clientY / window.innerHeight;
+    activeTouches.set(t.identifier, { zone: relY>JUMP_ZONE?'jump':'move', clientX:t.clientX });
+  }
+  if (gstate==='gameover') handleReplayTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+}, { passive:false });
 
-function applyPointerZone() {
-  if (myRole==='local' || !ptrActive) { myInp.left=false; myInp.right=false; return; }
-  const p = players[myIdx]; if (!p) return;
+cv.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    const rec = activeTouches.get(t.identifier);
+    if (rec) rec.clientX = t.clientX;
+  }
+}, { passive:false });
+
+cv.addEventListener('touchend', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) activeTouches.delete(t.identifier);
+}, { passive:false });
+
+cv.addEventListener('touchcancel', e => {
+  for (const t of e.changedTouches) activeTouches.delete(t.identifier);
+});
+
+cv.addEventListener('mousedown', e => {
+  mouseDown=true;
+  mouseZone = e.clientY/window.innerHeight>JUMP_ZONE?'jump':'move';
+  mouseX=e.clientX;
+  if (gstate==='gameover') handleReplayTap(e.clientX, e.clientY);
+});
+cv.addEventListener('mousemove', e => { if(mouseDown) mouseX=e.clientX; });
+cv.addEventListener('mouseup',    () => { mouseDown=false; mouseZone=null; });
+cv.addEventListener('mouseleave', () => { mouseDown=false; mouseZone=null; });
+
+function handleReplayTap(cx, cy) {
   const rect = cv.getBoundingClientRect();
-  const pcx  = rect.left + (p.x + p.w/2) * (rect.width / cv.width);
-  myInp.left  = ptrX < pcx - 10;  // small deadzone at center
-  myInp.right = ptrX > pcx + 10;
+  const sx=cv.width/rect.width, sy=cv.height/rect.height;
+  const tx=(cx-rect.left)*sx, ty=(cy-rect.top)*sy;
+  const bw=220,bh=62,bx=cv.width/2-110,by=cv.height*0.60;
+  if (tx>=bx&&tx<=bx+bw&&ty>=by&&ty<=by+bh) {
+    if (myRole==='guest') { if(conn&&conn.open) conn.send({type:'restart'}); }
+    else resetGame();
+  }
 }
 
-// ── Jump button ────────────────────────────────────────────────────────────
-const btnJump = $('btn-jump');
-const pressJump  = e => { e.preventDefault(); myInp.jump=true; };
-const releaseJump= e => { e.preventDefault(); myInp.jump=false; };
-btnJump.addEventListener('touchstart', pressJump,   {passive:false});
-btnJump.addEventListener('touchend',   releaseJump, {passive:false});
-btnJump.addEventListener('touchcancel',releaseJump, {passive:false});
-btnJump.addEventListener('mousedown',  pressJump);
-btnJump.addEventListener('mouseup',    releaseJump);
-btnJump.addEventListener('mouseleave', releaseJump);
+// ── Input resolution ───────────────────────────────────────────────────────
+function applyInput() {
+  myInp.left=myInp.right=myInp.jump=false;
+  if (myRole==='local') return; // keyboard-only
 
-// ── Keyboard (always active; drives myInp in net modes, both in local) ────
+  const p = players[myIdx];
+  if (!p || p.dead) return;
+
+  const rect = cv.getBoundingClientRect();
+  const pcx  = rect.left + (p.x + p.w/2) * (rect.width/cv.width);
+
+  for (const [,t] of activeTouches) {
+    if (t.zone==='jump') myInp.jump=true;
+    else { if(t.clientX<pcx-12) myInp.left=true; if(t.clientX>pcx+12) myInp.right=true; }
+  }
+  if (mouseDown&&mouseZone) {
+    if (mouseZone==='jump') myInp.jump=true;
+    else { if(mouseX<pcx-12) myInp.left=true; if(mouseX>pcx+12) myInp.right=true; }
+  }
+}
+
+// ── Keyboard ──────────────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
-  if (e.key==='ArrowUp'||e.key===' ') e.preventDefault();
-  // My player (any mode)
-  if (e.key==='a'||e.key==='ArrowLeft')  myInp.left=true;
-  if (e.key==='d'||e.key==='ArrowRight') myInp.right=true;
-  if ((e.key==='w'||e.key==='ArrowUp'||e.key===' ')) myInp.jump=true;
-  // Local P2 (local mode only)
-  if (myRole==='local') {
-    if (e.key==='ArrowLeft')  { myInp.left=false;  localP2.left=true; }
-    if (e.key==='ArrowRight') { myInp.right=false; localP2.right=true; }
-    if (e.key==='ArrowUp')    { myInp.jump=false;  localP2.jump=true; }
+  if(e.key==='ArrowUp'||e.key===' ') e.preventDefault();
+  if(e.key==='a') myInp.left=true;
+  if(e.key==='d') myInp.right=true;
+  if(e.key==='w'||e.key===' ') myInp.jump=true;
+  if(myRole==='local') {
+    if(e.key==='ArrowLeft')  { myInp.left=false; localP2.left=true; }
+    if(e.key==='ArrowRight') { myInp.right=false; localP2.right=true; }
+    if(e.key==='ArrowUp')    { myInp.jump=false; localP2.jump=true; }
   }
 });
 document.addEventListener('keyup', e => {
-  if (e.key==='a'||e.key==='ArrowLeft')  { myInp.left=false;  localP2.left=false; }
-  if (e.key==='d'||e.key==='ArrowRight') { myInp.right=false; localP2.right=false; }
-  if (e.key==='w'||e.key==='ArrowUp'||e.key===' ') { myInp.jump=false; localP2.jump=false; }
+  if(e.key==='a'||e.key==='ArrowLeft')  { myInp.left=false; localP2.left=false; }
+  if(e.key==='d'||e.key==='ArrowRight') { myInp.right=false; localP2.right=false; }
+  if(e.key==='w'||e.key==='ArrowUp'||e.key===' ') { myInp.jump=false; localP2.jump=false; }
 });
 
 // ── Physics ────────────────────────────────────────────────────────────────
@@ -333,188 +343,207 @@ function updatePlayer(p, inp) {
   if (p.hitFl>0) p.hitFl--;
   if (p.atkCd>0) p.atkCd--;
 
-  p.vx = 0;
+  p.vx=0;
   if (inp.left)  { p.vx=-SPEED; p.facing=-1; }
   if (inp.right) { p.vx= SPEED; p.facing= 1; }
 
   if (inp.jump && !p.jLock && p.jumpsLeft>0) {
-    p.vy = p.jumpsLeft===2 ? J1 : J2;
-    p.jumpsLeft--;
-    p.jLock=true;
-    p.onGround=false;
+    p.vy = p.jumpsLeft===2?J1:J2;
+    p.jumpsLeft--; p.jLock=true; p.onGround=false;
   }
   if (!inp.jump) p.jLock=false;
 
-  p.vy += G;
-  p.x  += p.vx;
-  p.y  += p.vy;
+  p.vy+=G; p.x+=p.vx; p.y+=p.vy;
 
   p.onGround=false;
-  platforms.forEach(pl => {
-    if (pl.broken) return;
+  for (const pl of platforms) {
+    if (pl.broken) continue;
     if (p.x+p.w>pl.x && p.x<pl.x+pl.w) {
       const foot=p.y+p.h, pf=foot-p.vy;
       if (pf<=pl.y+4 && foot>=pl.y && p.vy>=0) {
         p.y=pl.y-p.h; p.vy=0; p.onGround=true; p.jumpsLeft=2;
       }
     }
-  });
+  }
 
-  p.x = Math.max(0, Math.min(cv.width-p.w, p.x));
-  if (p.y+p.h >= lavaY) { p.dead=true; p.hp=0; }
+  p.x=Math.max(0,Math.min(cv.width-p.w,p.x));
+  if (p.y>=lavaWorldY) { p.dead=true; p.hp=0; }
 }
 
-// Auto-attack: contact damage. Higher player (lower y-center) deals damage.
-function checkContact(a, b) {
-  if (a.dead||b.dead) return;
-  if (a.atkCd>0||b.atkCd>0) return;
-  // AABB overlap
+function checkContact() {
+  const [a,b] = players;
+  if (a.dead||b.dead||a.atkCd>0||b.atkCd>0) return;
   if (a.x+a.w<b.x||b.x+b.w<a.x||a.y+a.h<b.y||b.y+b.h<a.y) return;
-
-  const aCy = a.y + a.h/2;
-  const bCy = b.y + b.h/2;
-  const attacker = aCy < bCy ? a : b;   // higher up = attacker
-  const defender = aCy < bCy ? b : a;
-
-  defender.hp--;
-  defender.hitFl = HIT_FL;
-  // Bounce apart
-  const dir = attacker.x < defender.x ? 1 : -1;
-  attacker.vx = -dir * 5;
-  attacker.vy = -4;
-  defender.vx =  dir * 7;
-  defender.vy = -6;
-  a.atkCd = BUMP_CD;
-  b.atkCd = BUMP_CD;
-  shake = 10;
+  const aTop=a.y<b.y; // a is higher if a.y is smaller
+  const atk=aTop?a:b, def=aTop?b:a;
+  def.hp--; def.hitFl=HIT_FL;
+  const dir=atk.x<def.x?1:-1;
+  atk.vx=-dir*4; atk.vy=-4;
+  def.vx= dir*7; def.vy=-6;
+  a.atkCd=BUMP_CD; b.atkCd=BUMP_CD;
+  shake=10;
 }
 
-// ── Network sync ───────────────────────────────────────────────────────────
+// ── Camera ─────────────────────────────────────────────────────────────────
+function updateCamera() {
+  const alive=players.filter(p=>!p.dead);
+  if (!alive.length) return;
+  // Track lowest alive player; keep them at 72% down screen
+  const lowestY=Math.max(...alive.map(p=>p.y+p.h));
+  const targetCamY=lowestY-cv.height*0.72;
+  // Ease toward target (camera can move in either direction for smoothness)
+  camVY+=(targetCamY-camY)*0.06;
+  camVY*=0.85; // dampen
+  camY+=camVY;
+}
+
+// ── Network ────────────────────────────────────────────────────────────────
 let syncTick=0;
 function hostSend() {
-  if (!conn||!conn.open) return;
+  if(!conn||!conn.open) return;
   conn.send({
     type:'state',
-    ps: players.map(p=>({x:p.x,y:p.y,vx:p.vx,vy:p.vy,hp:p.hp,hitFl:p.hitFl,atkCd:p.atkCd,facing:p.facing,dead:p.dead,jumpsLeft:p.jumpsLeft})),
-    plats: platforms.map(p=>({broken:p.broken,hp:p.hp})),
-    lavaY, lavaSpeed, gstate, winner,
+    ps:players.map(p=>({x:p.x,y:p.y,vx:p.vx,vy:p.vy,hp:p.hp,hitFl:p.hitFl,atkCd:p.atkCd,facing:p.facing,dead:p.dead,jumpsLeft:p.jumpsLeft})),
+    plats:platforms.map(p=>({broken:p.broken,hp:p.hp})),
+    lavaWorldY, lavaSpeed, camY, gstate, winner,
   });
 }
 function guestSend() {
-  if (!conn||!conn.open) return;
+  if(!conn||!conn.open) return;
   conn.send({ type:'input', ...myInp });
 }
 function applyState(d) {
   d.ps.forEach((s,i)=>{ if(players[i]) Object.assign(players[i],s); });
   d.plats.forEach((s,i)=>{ if(platforms[i]){ platforms[i].broken=s.broken; platforms[i].hp=s.hp; } });
-  lavaY=d.lavaY; lavaSpeed=d.lavaSpeed; gstate=d.gstate; winner=d.winner;
+  lavaWorldY=d.lavaWorldY; lavaSpeed=d.lavaSpeed;
+  camY=d.camY; gstate=d.gstate; winner=d.winner;
 }
 
 // ── Draw ───────────────────────────────────────────────────────────────────
+const ws = y => y - camY; // world → screen Y
+
 function drawBg() {
-  const g=cx2.createLinearGradient(0,0,0,cv.height);
+  const g=ctx.createLinearGradient(0,0,0,cv.height);
   g.addColorStop(0,'#0e0825'); g.addColorStop(1,'#260d00');
-  cx2.fillStyle=g; cx2.fillRect(0,0,cv.width,cv.height);
+  ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
 }
+
+function drawJumpZoneLine() {
+  // Subtle jump zone divider
+  const zy=cv.height*JUMP_ZONE;
+  ctx.save();
+  ctx.globalAlpha=0.18;
+  ctx.strokeStyle='#ff9900'; ctx.lineWidth=1;
+  ctx.setLineDash([6,10]);
+  ctx.beginPath(); ctx.moveTo(0,zy); ctx.lineTo(cv.width,zy); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#ff9900'; ctx.font='11px system-ui'; ctx.textAlign='center';
+  ctx.fillText('▲  TAP TO JUMP  ▲', cv.width/2, zy+14);
+  ctx.globalAlpha=1;
+  ctx.restore();
+}
+
 function drawPlat(pl) {
   if (pl.broken) return;
+  const sy=ws(pl.y);
+  if (sy>cv.height+20||sy+pl.h<-20) return;
   const dim=pl.cracked&&pl.hp===1;
-  cx2.globalAlpha=dim?0.42:1;
-  cx2.fillStyle=pl.cracked?'#7a4020':'#555a66';
-  cx2.fillRect(pl.x,pl.y,pl.w,pl.h);
-  cx2.fillStyle=pl.cracked?'#a05030':'#80858f';
-  cx2.fillRect(pl.x,pl.y,pl.w,3);
+  ctx.globalAlpha=dim?0.42:1;
+  ctx.fillStyle=pl.cracked?'#7a4020':'#555a66';
+  ctx.fillRect(pl.x,sy,pl.w,pl.h);
+  ctx.fillStyle=pl.cracked?'#a05030':'#80858f';
+  ctx.fillRect(pl.x,sy,pl.w,3);
   if (pl.cracked) {
-    cx2.strokeStyle='#3a1a08'; cx2.lineWidth=1.5; cx2.globalAlpha=dim?0.55:0.65;
+    ctx.strokeStyle='#3a1a08'; ctx.lineWidth=1.5; ctx.globalAlpha=dim?0.55:0.65;
     for(let i=0;i<3;i++){
       const px=pl.x+pl.w*(0.2+i*0.28);
-      cx2.beginPath(); cx2.moveTo(px,pl.y); cx2.lineTo(px+4,pl.y+pl.h); cx2.stroke();
+      ctx.beginPath(); ctx.moveTo(px,sy); ctx.lineTo(px+4,sy+pl.h); ctx.stroke();
     }
   }
-  cx2.globalAlpha=1;
+  ctx.globalAlpha=1;
 }
+
 function drawLava() {
+  const sy=ws(lavaWorldY);
+  if (sy>cv.height+60) return; // fully off screen
   const wo=frame*1.8;
-  cx2.save();
-  cx2.shadowColor='#ff5500'; cx2.shadowBlur=24;
-  const g=cx2.createLinearGradient(0,lavaY,0,cv.height);
+  ctx.save();
+  ctx.shadowColor='#ff5500'; ctx.shadowBlur=24;
+  const g=ctx.createLinearGradient(0,sy,0,cv.height);
   g.addColorStop(0,'#ff7700'); g.addColorStop(0.15,'#ff3300'); g.addColorStop(1,'#aa0000');
-  cx2.fillStyle=g;
-  cx2.beginPath(); cx2.moveTo(0,lavaY);
-  for(let x=0;x<=cv.width;x+=20) cx2.lineTo(x,lavaY+Math.sin((x+wo)*0.08)*6-3);
-  cx2.lineTo(cv.width,cv.height); cx2.lineTo(0,cv.height); cx2.closePath(); cx2.fill();
-  cx2.restore();
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.moveTo(0,sy);
+  for(let x=0;x<=cv.width;x+=20) ctx.lineTo(x,sy+Math.sin((x+wo)*0.08)*6-3);
+  ctx.lineTo(cv.width,cv.height); ctx.lineTo(0,cv.height); ctx.closePath(); ctx.fill();
+  ctx.restore();
 }
+
 function drawStick(p) {
-  const pcx=p.x+p.w/2, pcy=p.y;
+  const sy=ws(p.y);
+  if (sy+p.h<-60||sy>cv.height+60) return;
+  const pcx=p.x+p.w/2, pcy=sy;
   const fl=p.hitFl>0&&(p.hitFl%3<2);
-  cx2.save();
-  cx2.strokeStyle=fl?'#fff':p.color; cx2.lineWidth=3.5; cx2.lineCap='round';
-  cx2.beginPath(); cx2.arc(pcx,pcy+9,9,0,Math.PI*2); cx2.stroke();
-  cx2.beginPath(); cx2.moveTo(pcx,pcy+18); cx2.lineTo(pcx,pcy+36); cx2.stroke();
-  cx2.beginPath();
-  cx2.moveTo(pcx,pcy+36); cx2.lineTo(pcx-9,pcy+50);
-  cx2.moveTo(pcx,pcy+36); cx2.lineTo(pcx+9,pcy+50);
-  cx2.stroke();
-  cx2.beginPath();
-  cx2.moveTo(pcx,pcy+24); cx2.lineTo(pcx-11,pcy+33);
-  cx2.moveTo(pcx,pcy+24); cx2.lineTo(pcx+11,pcy+33);
-  cx2.stroke();
-  cx2.restore();
+  const isMe = !p.dead && (myRole==='local'||(myRole==='host'&&p.name==='FORD')||(myRole==='guest'&&p.name==='FINN'));
+
+  ctx.save();
+  ctx.strokeStyle=fl?'#fff':p.color; ctx.lineWidth=3.5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(pcx,pcy+9,9,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pcx,pcy+18); ctx.lineTo(pcx,pcy+36); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(pcx,pcy+36); ctx.lineTo(pcx-9,pcy+50);
+  ctx.moveTo(pcx,pcy+36); ctx.lineTo(pcx+9,pcy+50);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(pcx,pcy+24); ctx.lineTo(pcx-11,pcy+33);
+  ctx.moveTo(pcx,pcy+24); ctx.lineTo(pcx+11,pcy+33);
+  ctx.stroke();
+  ctx.restore();
+
   // double-jump dots
   for(let i=0;i<p.jumpsLeft;i++){
-    cx2.beginPath(); cx2.arc(pcx-5+i*10,pcy-5,3.5,0,Math.PI*2);
-    cx2.fillStyle=p.color; cx2.globalAlpha=0.65; cx2.fill(); cx2.globalAlpha=1;
+    ctx.beginPath(); ctx.arc(pcx-5+i*10,pcy-5,3.5,0,Math.PI*2);
+    ctx.fillStyle=p.color; ctx.globalAlpha=0.65; ctx.fill(); ctx.globalAlpha=1;
   }
-  // name + HP pips
-  cx2.fillStyle=p.color; cx2.font='bold 13px system-ui'; cx2.textAlign='center';
-  cx2.fillText(p.name,pcx,pcy-11);
+
+  ctx.fillStyle=p.color; ctx.font='bold 13px system-ui'; ctx.textAlign='center';
+  ctx.fillText(p.name+(isMe?' ◀':'')+' ', pcx, pcy-11);
   for(let i=0;i<3;i++){
-    cx2.beginPath(); cx2.arc(pcx-14+i*14,pcy-23,5.5,0,Math.PI*2);
-    cx2.fillStyle=i<p.hp?p.color:'#222'; cx2.fill();
-    cx2.strokeStyle='#555'; cx2.lineWidth=1; cx2.stroke();
+    ctx.beginPath(); ctx.arc(pcx-14+i*14,pcy-23,5.5,0,Math.PI*2);
+    ctx.fillStyle=i<p.hp?p.color:'#222'; ctx.fill();
+    ctx.strokeStyle='#555'; ctx.lineWidth=1; ctx.stroke();
   }
 }
+
 function drawHUD() {
+  // Altitude bar (how far players have climbed from start)
+  const climbed=Math.max(0,Math.round((WORLD_BOTTOM-Math.min(...players.map(p=>p.y)))/10));
+  ctx.fillStyle='#ffffff44'; ctx.font='12px system-ui'; ctx.textAlign='left';
+  ctx.fillText('↑ '+climbed+'m',8,20);
+
   const danger=lavaSpeed>1.2?'🔥 DANGER 🔥':lavaSpeed>0.6?'▲ LAVA RISING ▲':'CLIMB!';
   const r=Math.min(255,Math.floor(lavaSpeed*80+160));
   const g=Math.max(0,Math.floor(120-lavaSpeed*80));
-  cx2.fillStyle=`rgb(${r},${g},0)`; cx2.font='bold 17px system-ui'; cx2.textAlign='center';
-  cx2.fillText(danger,cv.width/2,26);
+  ctx.fillStyle=`rgb(${r},${g},0)`; ctx.font='bold 17px system-ui'; ctx.textAlign='center';
+  ctx.fillText(danger,cv.width/2,22);
+
   if (myRole!=='local') {
-    cx2.fillStyle=conn&&conn.open?'#00ff88':'#ff4444';
-    cx2.font='12px system-ui'; cx2.textAlign='right';
-    cx2.fillText(conn&&conn.open?'● online':'● offline',cv.width-10,18);
+    ctx.fillStyle=conn&&conn.open?'#00ff88':'#ff4444';
+    ctx.font='12px system-ui'; ctx.textAlign='right';
+    ctx.fillText(conn&&conn.open?'● online':'● offline',cv.width-8,18);
   }
-}
-function drawGameOver() {
-  cx2.fillStyle='rgba(0,0,0,0.58)'; cx2.fillRect(0,0,cv.width,cv.height);
-  const col=winner==='FORD'?'#4499ff':winner==='FINN'?'#ff4444':'#ffaa00';
-  cx2.fillStyle=col; cx2.font=`bold ${Math.floor(cv.width*0.09)}px system-ui`; cx2.textAlign='center';
-  cx2.fillText(winner==='NOBODY'?'DRAW!':winner+' WINS!',cv.width/2,cv.height*0.35);
-  cx2.fillStyle='#ffaa00'; cx2.font=`${Math.floor(cv.width*0.04)}px system-ui`;
-  cx2.fillText(winner==='NOBODY'?'both fell in!':'survived the lava!',cv.width/2,cv.height*0.48);
-  const bw=220,bh=62,bx=cv.width/2-110,by=cv.height*0.60;
-  cx2.fillStyle='#333'; cx2.beginPath(); cx2.roundRect(bx,by,bw,bh,12); cx2.fill();
-  cx2.fillStyle='#fff'; cx2.font='bold 26px system-ui';
-  cx2.fillText('PLAY AGAIN',cv.width/2,by+42);
 }
 
-// Canvas tap — game over replay button
-cv.addEventListener('click',      handleCvTap);
-cv.addEventListener('touchstart', handleCvTap, {passive:false});
-function handleCvTap(e) {
-  if (gstate!=='gameover') return;
-  e.preventDefault();
-  const rect=cv.getBoundingClientRect();
-  const sx=cv.width/rect.width, sy=cv.height/rect.height;
-  const src=e.touches?e.touches[0]:e;
-  const tx=(src.clientX-rect.left)*sx, ty=(src.clientY-rect.top)*sy;
+function drawGameOver() {
+  ctx.fillStyle='rgba(0,0,0,0.62)'; ctx.fillRect(0,0,cv.width,cv.height);
+  const col=winner==='FORD'?'#4499ff':winner==='FINN'?'#ff4444':'#ffaa00';
+  ctx.fillStyle=col; ctx.font=`bold ${Math.floor(cv.width*0.09)}px system-ui`; ctx.textAlign='center';
+  ctx.fillText(winner==='NOBODY'?'DRAW!':winner+' WINS!',cv.width/2,cv.height*0.35);
+  ctx.fillStyle='#ffaa00'; ctx.font=`${Math.floor(cv.width*0.04)}px system-ui`;
+  ctx.fillText('survived the lava!',cv.width/2,cv.height*0.48);
   const bw=220,bh=62,bx=cv.width/2-110,by=cv.height*0.60;
-  if (tx>=bx&&tx<=bx+bw&&ty>=by&&ty<=by+bh) {
-    if (myRole==='guest') { if(conn&&conn.open) conn.send({type:'restart'}); }
-    else resetGame();
-  }
+  ctx.fillStyle='#333'; ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,12); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='bold 26px system-ui';
+  ctx.fillText('PLAY AGAIN',cv.width/2,by+42);
 }
 
 // ── Main loop ──────────────────────────────────────────────────────────────
@@ -523,33 +552,42 @@ function loop() {
   if (gstate!=='playing'&&gstate!=='gameover') return;
 
   let sx=0,sy=0;
-  if (shake>0) { sx=(Math.random()-.5)*7; sy=(Math.random()-.5)*7; shake--; }
-  cx2.save(); cx2.translate(sx,sy);
+  if(shake>0){ sx=(Math.random()-.5)*7; sy=(Math.random()-.5)*7; shake--; }
+  ctx.save(); ctx.translate(sx,sy);
 
   if (gstate==='playing') {
     frame++;
-    lavaSpeed = LAVA_BASE + frame*LAVA_ACC;
-    lavaY    -= lavaSpeed;
+    lavaSpeed=LAVA_BASE+frame*LAVA_ACC;
+    lavaWorldY-=lavaSpeed; // lava rises in world space
 
     if (myRole==='host'||myRole==='local') {
-      applyPointerZone();
-      const p2inp = myRole==='local' ? localP2 : remoteInp;
+      applyInput();
+      const p2inp=myRole==='local'?localP2:remoteInp;
       updatePlayer(players[0], myInp);
       updatePlayer(players[1], p2inp);
-      checkContact(players[0], players[1]);
+      checkContact();
+      updateCamera();
+
+      // Generate more platforms above camera if needed
+      genPlatforms(camY - GEN_AHEAD);
+      // Clean up platforms far below lava
+      const purgeLine=lavaWorldY+cv.height*0.5;
+      for(let i=platforms.length-1;i>=0;i--) {
+        if(platforms[i].y>purgeLine) platforms.splice(i,1);
+      }
 
       const alive=players.filter(p=>!p.dead);
-      if (alive.length<=1&&!winner) {
+      if(alive.length<=1&&!winner){
         winner=alive.length?alive[0].name:'NOBODY';
         gstate='gameover';
       }
       syncTick++;
-      if (syncTick%2===0) hostSend();
+      if(syncTick%2===0) hostSend();
     } else {
-      // Guest: apply pointer zone, send input, render host state
-      applyPointerZone();
+      applyInput();
       syncTick++;
-      if (syncTick%2===0) guestSend();
+      if(syncTick%2===0) guestSend();
+      // Guest still needs camera update (camY comes from host via applyState)
     }
   }
 
@@ -557,9 +595,9 @@ function loop() {
   platforms.forEach(drawPlat);
   drawLava();
   players.forEach(drawStick);
-  if (gstate==='playing')  drawHUD();
-  if (gstate==='gameover') drawGameOver();
-  cx2.restore();
+  if(gstate==='playing')  { drawHUD(); drawJumpZoneLine(); }
+  if(gstate==='gameover') drawGameOver();
+  ctx.restore();
 }
 
 // ── Boot ───────────────────────────────────────────────────────────────────
