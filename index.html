@@ -235,7 +235,7 @@ document.addEventListener('keyup', e => {
 function startLocal() { myRole = 'local'; myIdx = 0; launchGame(); }
 
 // ── Game launch / reset ────────────────────────────────────────────────────
-function launchGame() { resize(); setupLevel(); gstate = 'playing'; show('game'); }
+function launchGame() { show('game'); resize(); setupLevel(); gstate = 'playing'; }
 function resetGame()  { setupLevel(); gstate = 'playing'; }
 function returnToLobby() { gstate = 'lobby'; destroyPeer(); show('s-lobby'); }
 
