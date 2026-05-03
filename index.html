@@ -36,8 +36,8 @@ body {
 .np-connect { background:#0d2260 !important; border-color:#4499ff !important; }
 .np-error   { color:#ff4444; font-size:18px; min-height:24px; }
 
-/* Canvas fills everything — no button bar */
-canvas { display:block; flex:1; min-height:0; touch-action:none; }
+/* Canvas fills the viewport; internal resolution is fixed (LOGICAL_W x LOGICAL_H) */
+canvas { display:block; flex:1; min-height:0; width:100vw; height:100dvh; touch-action:none; background:#111; }
 </style>
 </head>
 <body>
@@ -88,9 +88,12 @@ const LAVA_ACC   = 0.00006;
 const BUMP_CD    = 50;
 const HIT_FL     = 14;
 const PEER_PFX   = 'lava2026-';
-const JUMP_ZONE  = 0.72;   // screen Y fraction — below this = jump zone
+const JUMP_ZONE  = 0.72;   // canvas Y fraction — below this = jump zone
 const WORLD_BOTTOM = 2000; // initial floor world Y
 const GEN_AHEAD  = 900;    // px above camera top to pre-generate
+// Fixed logical canvas — both devices run in identical coordinate space
+const LOGICAL_W = 800;
+const LOGICAL_H = 1200;
 
 // ── Role / net ─────────────────────────────────────────────────────────────
 let myRole = null, myIdx = 0, peer = null, conn = null;
@@ -124,8 +127,18 @@ function show(id) {
 }
 
 function resize() {
-  cv.width  = window.innerWidth;
-  cv.height = window.innerHeight;
+  // Fixed logical resolution so host & guest run in identical coord space
+  cv.width  = LOGICAL_W;
+  cv.height = LOGICAL_H;
+}
+
+// Convert a viewport (client) coordinate to canvas coordinate
+function clientToCanvas(clientX, clientY) {
+  const rect = cv.getBoundingClientRect();
+  return {
+    x: (clientX - rect.left) * cv.width  / rect.width,
+    y: (clientY - rect.top)  * cv.height / rect.height,
+  };
 }
 window.addEventListener('resize', () => { resize(); if (gstate !== 'playing') setupLevel(); });
 
@@ -255,12 +268,12 @@ function setupLevel() {
   ];
 }
 
-// ── Canvas touch & mouse ───────────────────────────────────────────────────
+// ── Canvas touch & mouse (all coords in canvas space) ─────────────────────
 cv.addEventListener('touchstart', e => {
   e.preventDefault();
   for (const t of e.changedTouches) {
-    const relY = t.clientY / window.innerHeight;
-    activeTouches.set(t.identifier, { zone: relY>JUMP_ZONE?'jump':'move', clientX:t.clientX });
+    const c = clientToCanvas(t.clientX, t.clientY);
+    activeTouches.set(t.identifier, { zone: c.y>cv.height*JUMP_ZONE?'jump':'move', x:c.x });
   }
   if (gstate==='gameover') handleReplayTap(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
 }, { passive:false });
@@ -269,7 +282,7 @@ cv.addEventListener('touchmove', e => {
   e.preventDefault();
   for (const t of e.changedTouches) {
     const rec = activeTouches.get(t.identifier);
-    if (rec) rec.clientX = t.clientX;
+    if (rec) rec.x = clientToCanvas(t.clientX, t.clientY).x;
   }
 }, { passive:false });
 
@@ -283,21 +296,20 @@ cv.addEventListener('touchcancel', e => {
 });
 
 cv.addEventListener('mousedown', e => {
+  const c = clientToCanvas(e.clientX, e.clientY);
   mouseDown=true;
-  mouseZone = e.clientY/window.innerHeight>JUMP_ZONE?'jump':'move';
-  mouseX=e.clientX;
+  mouseZone = c.y>cv.height*JUMP_ZONE?'jump':'move';
+  mouseX = c.x;
   if (gstate==='gameover') handleReplayTap(e.clientX, e.clientY);
 });
-cv.addEventListener('mousemove', e => { if(mouseDown) mouseX=e.clientX; });
+cv.addEventListener('mousemove', e => { if(mouseDown) mouseX = clientToCanvas(e.clientX, e.clientY).x; });
 cv.addEventListener('mouseup',    () => { mouseDown=false; mouseZone=null; });
 cv.addEventListener('mouseleave', () => { mouseDown=false; mouseZone=null; });
 
-function handleReplayTap(cx, cy) {
-  const rect = cv.getBoundingClientRect();
-  const sx=cv.width/rect.width, sy=cv.height/rect.height;
-  const tx=(cx-rect.left)*sx, ty=(cy-rect.top)*sy;
+function handleReplayTap(clientX, clientY) {
+  const c = clientToCanvas(clientX, clientY);
   const bw=220,bh=62,bx=cv.width/2-110,by=cv.height*0.60;
-  if (tx>=bx&&tx<=bx+bw&&ty>=by&&ty<=by+bh) {
+  if (c.x>=bx&&c.x<=bx+bw&&c.y>=by&&c.y<=by+bh) {
     if (myRole==='guest') { if(conn&&conn.open) conn.send({type:'restart'}); }
     else resetGame();
   }
@@ -329,15 +341,14 @@ function applyInput() {
   myInp.left=kbdInp.left; myInp.right=kbdInp.right; myInp.jump=kbdInp.jump;
   if (myRole==='local') return;
 
-  // cv.width == window.innerWidth and canvas starts at left:0, so
-  // p.x is already in the same coordinate space as t.clientX — no scaling needed.
+  // Touch / mouse coords are already in canvas space (clientToCanvas)
   const p = players[myIdx];
   if (!p) return;
   const pcx = p.x + p.w / 2;
 
   for (const [,t] of activeTouches) {
     if (t.zone==='jump') myInp.jump=true;
-    else { if(t.clientX < pcx) myInp.left=true; else myInp.right=true; }
+    else { if(t.x < pcx) myInp.left=true; else myInp.right=true; }
   }
   if (mouseDown && mouseZone) {
     if (mouseZone==='jump') myInp.jump=true;
@@ -412,7 +423,8 @@ function hostSend() {
   conn.send({
     type:'state',
     ps:players.map(p=>({x:p.x,y:p.y,vx:p.vx,vy:p.vy,hp:p.hp,hitFl:p.hitFl,atkCd:p.atkCd,facing:p.facing,dead:p.dead,jumpsLeft:p.jumpsLeft})),
-    plats:platforms.map(p=>({broken:p.broken,hp:p.hp})),
+    // Send full platform data so guest renders identical layout
+    plats:platforms.map(p=>({x:p.x,y:p.y,w:p.w,cracked:p.cracked,broken:p.broken,hp:p.hp})),
     lavaWorldY, lavaSpeed, camY, gstate, winner,
   });
 }
@@ -422,7 +434,8 @@ function guestSend() {
 }
 function applyState(d) {
   d.ps.forEach((s,i)=>{ if(players[i]) Object.assign(players[i],s); });
-  d.plats.forEach((s,i)=>{ if(platforms[i]){ platforms[i].broken=s.broken; platforms[i].hp=s.hp; } });
+  // Replace entire platform list with host's authoritative version
+  platforms = d.plats.map(p => ({ x:p.x, y:p.y, w:p.w, h:14, cracked:p.cracked, broken:p.broken, hp:p.hp }));
   lavaWorldY=d.lavaWorldY; lavaSpeed=d.lavaSpeed;
   camY=d.camY; gstate=d.gstate; winner=d.winner;
 }
