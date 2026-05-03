@@ -125,7 +125,7 @@ function show(id) {
 
 function resize() {
   cv.width  = window.innerWidth;
-  cv.height = cv.offsetHeight;
+  cv.height = window.innerHeight;
 }
 window.addEventListener('resize', () => { resize(); if (gstate !== 'playing') setupLevel(); });
 
@@ -329,16 +329,19 @@ function applyInput() {
   myInp.left=kbdInp.left; myInp.right=kbdInp.right; myInp.jump=kbdInp.jump;
   if (myRole==='local') return;
 
-  // OR-in touch / mouse: left half of screen = left, right half = right
-  const mid = window.innerWidth / 2;
+  // cv.width == window.innerWidth and canvas starts at left:0, so
+  // p.x is already in the same coordinate space as t.clientX — no scaling needed.
+  const p = players[myIdx];
+  if (!p) return;
+  const pcx = p.x + p.w / 2;
 
   for (const [,t] of activeTouches) {
     if (t.zone==='jump') myInp.jump=true;
-    else { if(t.clientX<mid) myInp.left=true; else myInp.right=true; }
+    else { if(t.clientX < pcx) myInp.left=true; else myInp.right=true; }
   }
   if (mouseDown && mouseZone) {
     if (mouseZone==='jump') myInp.jump=true;
-    else { if(mouseX<mid) myInp.left=true; else myInp.right=true; }
+    else { if(mouseX < pcx) myInp.left=true; else myInp.right=true; }
   }
 }
 
