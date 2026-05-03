@@ -103,9 +103,10 @@ let camY = 0, camVY = 0;   // world Y of screen top; camera velocity
 let genTop = WORLD_BOTTOM; // highest world Y we've generated platforms at
 
 // ── Input ──────────────────────────────────────────────────────────────────
-const myInp      = { left:false, right:false, jump:false };
-const remoteInp  = { left:false, right:false, jump:false };
-const localP2    = { left:false, right:false, jump:false };
+const myInp     = { left:false, right:false, jump:false };
+const kbdInp    = { left:false, right:false, jump:false }; // keyboard state, merged into myInp each frame
+const remoteInp = { left:false, right:false, jump:false };
+const localP2   = { left:false, right:false, jump:false };
 
 // Multi-touch tracking
 const activeTouches = new Map(); // id → { zone:'move'|'jump', clientX }
@@ -200,13 +201,12 @@ function returnToLobby() { gstate='lobby'; destroyPeer(); show('s-lobby'); }
 
 // ── Procedural platform generation ─────────────────────────────────────────
 function genPlatforms(upToY) {
-  // upToY is the smallest (highest) world Y to generate to
-  const W = cv.width;
+  const W = cv.width, H = cv.height;
   while (genTop > upToY) {
-    genTop -= 95 + Math.random() * 60;
+    // Gap is relative to screen height so spacing looks the same on every device
+    genTop -= H * (0.13 + Math.random() * 0.07);
     const w = W * (0.26 + Math.random() * 0.24);
-    // Ensure platform is reachable: x in [0, W-w] but biased to alternate sides
-    const x = Math.random() * (W * 0.7 - w) + Math.random() * W * 0.3;
+    const x = Math.random() * (W - w);
     const cracked = Math.random() < 0.38;
     platforms.push({ x, y:genTop, w, h:14, cracked, hp:2, broken:false });
   }
@@ -229,19 +229,24 @@ function setupLevel() {
   frame=0; shake=0; winner=null;
   lavaSpeed = LAVA_BASE;
 
-  const playerStartY = WORLD_BOTTOM - 120;
+  // Players stand on the floor from frame 1
+  const floorY      = WORLD_BOTTOM;
+  const playerStartY = floorY - 50; // feet exactly on floor (h=50)
 
-  // Floor platform + initial pre-generated platforms
+  // Wide floor + two starter platforms one row above
+  const rowGap = cv.height * 0.16;
   platforms = [
-    { x:cv.width*0.05, y:WORLD_BOTTOM, w:cv.width*0.9, h:14, cracked:false, hp:10, broken:false },
-    { x:cv.width*0.15, y:WORLD_BOTTOM-120, w:cv.width*0.32, h:14, cracked:false, hp:2, broken:false },
-    { x:cv.width*0.52, y:WORLD_BOTTOM-120, w:cv.width*0.32, h:14, cracked:false, hp:2, broken:false },
+    { x:cv.width*0.05, y:floorY,        w:cv.width*0.9,  h:14, cracked:false, hp:10, broken:false },
+    { x:cv.width*0.08, y:floorY-rowGap, w:cv.width*0.33, h:14, cracked:false, hp:2,  broken:false },
+    { x:cv.width*0.55, y:floorY-rowGap, w:cv.width*0.33, h:14, cracked:false, hp:2,  broken:false },
   ];
-  genTop = WORLD_BOTTOM - 120;
-  genPlatforms(WORLD_BOTTOM - cv.height * 4); // seed above view
+  genTop = floorY - rowGap;
+  genPlatforms(floorY - cv.height * 4); // seed platforms 4 screens above
 
-  lavaWorldY = WORLD_BOTTOM + cv.height * 0.8; // starts off screen below
-  camY = playerStartY - cv.height * 0.62;      // players appear ~62% down
+  // Lava starts 1.2 screens below — visible threat within ~8 seconds
+  lavaWorldY = floorY + cv.height * 1.2;
+  // Camera: floor at ~78% down so both players and first platforms are visible
+  camY = floorY - cv.height * 0.78;
   camVY = 0;
 
   players = [
@@ -298,14 +303,35 @@ function handleReplayTap(cx, cy) {
   }
 }
 
+// ── Keyboard ──────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key===' '||e.key==='ArrowUp') e.preventDefault();
+  if (e.key==='a'||e.key==='ArrowLeft')  kbdInp.left=true;
+  if (e.key==='d'||e.key==='ArrowRight') kbdInp.right=true;
+  if (e.key===' ')                        kbdInp.jump=true;
+  // Local P2: arrow keys
+  if (myRole==='local') {
+    if (e.key==='ArrowLeft')  { kbdInp.left=false;  localP2.left=true; }
+    if (e.key==='ArrowRight') { kbdInp.right=false; localP2.right=true; }
+    if (e.key==='ArrowUp')    localP2.jump=true;
+  }
+});
+document.addEventListener('keyup', e => {
+  if (e.key==='a'||e.key==='ArrowLeft')  { kbdInp.left=false;  localP2.left=false; }
+  if (e.key==='d'||e.key==='ArrowRight') { kbdInp.right=false; localP2.right=false; }
+  if (e.key===' ')                        kbdInp.jump=false;
+  if (e.key==='ArrowUp')                  localP2.jump=false;
+});
+
 // ── Input resolution ───────────────────────────────────────────────────────
 function applyInput() {
-  myInp.left=myInp.right=myInp.jump=false;
-  if (myRole==='local') return; // keyboard-only
+  // Start from keyboard state so it's never clobbered
+  myInp.left=kbdInp.left; myInp.right=kbdInp.right; myInp.jump=kbdInp.jump;
+  if (myRole==='local') return;
 
+  // OR-in touch / mouse
   const p = players[myIdx];
   if (!p || p.dead) return;
-
   const rect = cv.getBoundingClientRect();
   const pcx  = rect.left + (p.x + p.w/2) * (rect.width/cv.width);
 
@@ -318,24 +344,6 @@ function applyInput() {
     else { if(mouseX<pcx-12) myInp.left=true; if(mouseX>pcx+12) myInp.right=true; }
   }
 }
-
-// ── Keyboard ──────────────────────────────────────────────────────────────
-document.addEventListener('keydown', e => {
-  if(e.key==='ArrowUp'||e.key===' ') e.preventDefault();
-  if(e.key==='a') myInp.left=true;
-  if(e.key==='d') myInp.right=true;
-  if(e.key==='w'||e.key===' ') myInp.jump=true;
-  if(myRole==='local') {
-    if(e.key==='ArrowLeft')  { myInp.left=false; localP2.left=true; }
-    if(e.key==='ArrowRight') { myInp.right=false; localP2.right=true; }
-    if(e.key==='ArrowUp')    { myInp.jump=false; localP2.jump=true; }
-  }
-});
-document.addEventListener('keyup', e => {
-  if(e.key==='a'||e.key==='ArrowLeft')  { myInp.left=false; localP2.left=false; }
-  if(e.key==='d'||e.key==='ArrowRight') { myInp.right=false; localP2.right=false; }
-  if(e.key==='w'||e.key==='ArrowUp'||e.key===' ') { myInp.jump=false; localP2.jump=false; }
-});
 
 // ── Physics ────────────────────────────────────────────────────────────────
 function updatePlayer(p, inp) {
